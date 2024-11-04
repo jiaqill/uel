@@ -4,36 +4,37 @@ import java.util.HashSet;
 import java.util.Set;
 
 import de.tudresden.inf.lat.uel.rule.rules.Rule.Application;
+import de.tudresden.inf.lat.uel.type.api.Goal;
 
 /**
  * Instances of this class describe the result of applying a rule of the
- * rule-based unification algorithm for EL to a subsumption. In particular, they
- * specify newly created subsumptions and new assignments.
+ * rule-based unification algorithm for EL to a constraint. In particular, they
+ * specify newly created constraints and new assignments.
  * 
  * @author Stefan Borgwardt
  */
 public final class Result {
 
-	private final FlatSubsumption subsumption;
+	private final FlatConstraint constraint;
 	private final Application application;
-	private final Set<FlatSubsumption> newUnsolvedSubsumptions = new HashSet<>();
-	private final Set<FlatSubsumption> newSolvedSubsumptions = new HashSet<>();
-	private final Set<FlatSubsumption> solvedSubsumptions = new HashSet<>();
+	private final Set<FlatConstraint> newUnsolvedConstraints = new HashSet<>();
+	private final Set<FlatConstraint> newSolvedConstraints = new HashSet<>();
+	private final Set<FlatConstraint> solvedConstraints = new HashSet<>();
 	private final Assignment newSubsumers = new Assignment();
 	private boolean successful;
 
 	/**
 	 * Construct a new rule application result.
 	 * 
-	 * @param subsumption
-	 *            the subsumption that triggered the rule application
+	 * @param constraint
+	 *            the constraint that triggered the rule application
 	 * @param application
 	 *            the rule application
 	 * @param successful
 	 *            a flag indicating whether the rule application was successful
 	 */
-	public Result(FlatSubsumption subsumption, Application application, boolean successful) {
-		this.subsumption = subsumption;
+	public Result(FlatConstraint constraint, Application application, boolean successful) {
+		this.constraint = constraint;
 		this.application = application;
 		this.successful = successful;
 	}
@@ -42,18 +43,18 @@ public final class Result {
 	 * Construct a new rule application result, assuming that the application
 	 * was successful.
 	 * 
-	 * @param subsumption
-	 *            the subsumption that triggered the rule application
+	 * @param constraint
+	 *            the constraint that triggered the rule application
 	 * @param application
 	 *            the rule application
 	 */
-	public Result(FlatSubsumption subsumption, Application application) {
-		this(subsumption, application, true);
+	public Result(FlatConstraint constraint, Application application) {
+		this(constraint, application, true);
 	}
 
 	/**
 	 * Adds the given result to this instance by appropriately merging the sets
-	 * of new subsumptions and the new assignments.
+	 * of new constraints and the new assignments.
 	 * 
 	 * @param res
 	 *            the result that is to be added to the current result
@@ -63,33 +64,33 @@ public final class Result {
 		 * the result of (committed) eager rule applications should be added to
 		 * the (committed) main result
 		 */
-		if (res.subsumption != null) {
-			solveSubsumption(res.subsumption);
+		if (res.constraint != null) {
+			solveConstraint(res.constraint);
 		}
 
-		newUnsolvedSubsumptions.addAll(res.newUnsolvedSubsumptions);
-		newSolvedSubsumptions.addAll(res.newSolvedSubsumptions);
-		for (FlatSubsumption sub : res.solvedSubsumptions) {
-			solveSubsumption(sub);
+		newUnsolvedConstraints.addAll(res.newUnsolvedConstraints);
+		newSolvedConstraints.addAll(res.newSolvedConstraints);
+		for (FlatConstraint sub : res.solvedConstraints) {
+			solveConstraint(sub);
 		}
 		newSubsumers.addAll(res.newSubsumers);
 	}
 
-	private void solveSubsumption(FlatSubsumption sub) {
-		if (newUnsolvedSubsumptions.remove(sub)) {
-			newSolvedSubsumptions.add(sub);
+	private void solveConstraint(FlatConstraint sub) {
+		if (newUnsolvedConstraints.remove(sub)) {
+			newSolvedConstraints.add(sub);
 		} else {
-			solvedSubsumptions.add(sub);
+			solvedConstraints.add(sub);
 		}
 	}
 
 	/**
-	 * Return the subsumption that triggered the rule application.
+	 * Return the constraint that triggered the rule application.
 	 * 
-	 * @return the triggering subsumption
+	 * @return the triggering constraint
 	 */
-	FlatSubsumption getSubsumption() {
-		return subsumption;
+	FlatConstraint getConstraint() {
+		return constraint;
 	}
 
 	/**
@@ -132,50 +133,50 @@ public final class Result {
 	}
 
 	/**
-	 * Retrieve the new unsolved subsumptions that resulted from the rule
+	 * Retrieve the new unsolved constraints that resulted from the rule
 	 * application or subsequent applications of eager rules.
 	 * 
-	 * @return a set of new unsolved subsumptions
+	 * @return a set of new unsolved constraints
 	 */
-	public Set<FlatSubsumption> getNewUnsolvedSubsumptions() {
-		return newUnsolvedSubsumptions;
+	public Set<FlatConstraint> getNewUnsolvedConstraints() {
+		return newUnsolvedConstraints;
 	}
 
 	/**
-	 * Retrieve the new unsolved subsumptions that resulted from the rule
+	 * Retrieve the new unsolved constraints that resulted from the rule
 	 * application or subsequent applications of eager rules.
 	 * 
-	 * @return a set of new unsolved subsumptions
+	 * @return a set of new unsolved constraints
 	 */
-	Set<FlatSubsumption> getNewSolvedSubsumptions() {
-		return newSolvedSubsumptions;
+	public Set<FlatConstraint> getNewSolvedConstraints() {
+		return newSolvedConstraints;
 	}
 
 	/**
-	 * Retrieve the solved subsumptions that resulted from the rule application
+	 * Retrieve the solved constraints that resulted from the rule application
 	 * or subsequent applications of eager rules.
 	 * 
-	 * @return a set of solved subsumptions
+	 * @return a set of solved constraints
 	 */
-	Set<FlatSubsumption> getSolvedSubsumptions() {
-		return solvedSubsumptions;
+	Set<FlatConstraint> getSolvedConstraints() {
+		return solvedConstraints;
 	}
 
 	@Override
 	public String toString() {
 		StringBuffer buf = new StringBuffer();
 		buf.append("{");
-		buf.append(subsumption);
+		buf.append(constraint);
 		buf.append(",");
 		buf.append(application);
 		buf.append(",");
 		buf.append(successful);
 		buf.append(",");
-		buf.append(newUnsolvedSubsumptions);
+		buf.append(newUnsolvedConstraints);
 		buf.append(",");
-		buf.append(newSolvedSubsumptions);
+		buf.append(newSolvedConstraints);
 		buf.append(",");
-		buf.append(solvedSubsumptions);
+		buf.append(solvedConstraints);
 		buf.append(",");
 		buf.append(newSubsumers);
 		buf.append("}");

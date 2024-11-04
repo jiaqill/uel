@@ -1,5 +1,6 @@
 package de.tudresden.inf.lat.uel.type.api;
 
+import java.util.List;
 import java.util.Set;
 
 import de.tudresden.inf.lat.uel.type.impl.ConceptName;
@@ -61,4 +62,8 @@ public interface AtomManager {
 	String getRoleName(Integer roleId);
 
 	int size();
+
+	public List<Atom> getNonvariableAtoms();
+
+	public IndexedSet<Atom> getAtoms();
 }

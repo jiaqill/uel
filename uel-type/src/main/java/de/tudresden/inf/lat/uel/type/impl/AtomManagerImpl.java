@@ -1,10 +1,6 @@
 package de.tudresden.inf.lat.uel.type.impl;
 
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 import de.tudresden.inf.lat.uel.type.api.Atom;
 import de.tudresden.inf.lat.uel.type.api.AtomManager;
@@ -177,5 +173,20 @@ public class AtomManagerImpl implements AtomManager {
 	@Override
 	public int size() {
 		return atoms.size();
+	}
+
+	public List<Atom> getNonvariableAtoms() {
+		List<Atom> nonVariableAtoms = new ArrayList<>();
+		for (Atom at : atoms) {
+			if (!variables.contains(getIndex(at))) {
+				nonVariableAtoms.add(at);
+				// System.out.println(getIndex(at));
+			}
+		}
+		return nonVariableAtoms;
+	}
+
+	public IndexedSet<Atom> getAtoms() {
+		return atoms;
 	}
 }

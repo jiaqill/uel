@@ -1,42 +1,55 @@
 package de.tudresden.inf.lat.uel.rule;
 
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
+import java.util.*;
 import java.util.Map.Entry;
-import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import de.tudresden.inf.lat.uel.type.api.Atom;
 
 /**
  * An assignment of sets of non-variable atoms to variables. Such an assignment
  * should always be acyclic.
- * 
+ *
  * @author Stefan Borgwardt
  */
 public class Assignment {
 
 	private final Map<Atom, Set<Atom>> subs = new HashMap<>();
+	private List<Atom> nonVariableAtoms;
 
 	/**
 	 * Create an empty assignment.
 	 */
-	Assignment() {
+	Assignment() {}
+
+	/**
+	 * Create an assignment with a list of non-variable atoms.
+	 *
+	 * @param nonVariableAtoms the list of non-variable atoms
+	 */
+	Assignment(List<Atom> nonVariableAtoms) {
+		this.nonVariableAtoms = nonVariableAtoms;
 	}
 
 	/**
 	 * Create a copy of another assignment.
-	 * 
+	 *
 	 * @param other
 	 *            the other assignment
 	 */
 	Assignment(Assignment other) {
 		addAll(other);
+		this.nonVariableAtoms = other.getNonVariableAtoms();
+	}
+
+	public List<Atom> getNonVariableAtoms() {
+		//return Collections.unmodifiableList(nonVariableAtoms);
+		return this.nonVariableAtoms;
 	}
 
 	/**
 	 * Add an atom to the assignment of a variable.
-	 * 
+	 *
 	 * @param var
 	 *            the index of the variable
 	 * @param at
@@ -53,7 +66,7 @@ public class Assignment {
 
 	/**
 	 * Add a set of atoms to the assignment of a variable.
-	 * 
+	 *
 	 * @param var
 	 *            the index of the variable
 	 * @param at
@@ -69,7 +82,7 @@ public class Assignment {
 
 	/**
 	 * Add another variable assignment to this assignment.
-	 * 
+	 *
 	 * @param other
 	 *            the assignment to be merged into this one
 	 * @return true iff the assignment was changed as a result of this operation
@@ -87,7 +100,7 @@ public class Assignment {
 
 	/**
 	 * Remove a set of atoms from the assignment of a variable.
-	 * 
+	 *
 	 * @param var
 	 *            the index of the variable
 	 * @param at
@@ -104,7 +117,7 @@ public class Assignment {
 
 	/**
 	 * Subtract another variable assignment from this assignment.
-	 * 
+	 *
 	 * @param other
 	 *            the assignment to be removed from this one
 	 * @return true iff the assignment was changed as a result of this operation
@@ -122,7 +135,7 @@ public class Assignment {
 
 	/**
 	 * Retrieve the subsumers of a given variable according to this assignment.
-	 * 
+	 *
 	 * @param var
 	 *            the variable
 	 * @return the set of assigned subsumers
@@ -135,7 +148,7 @@ public class Assignment {
 	 * Retrieve the variable indices of the variables that are explicitly
 	 * assigned some non-variable atoms by this assignment. This assignment
 	 * might also be the empty set.
-	 * 
+	 *
 	 * @return a set containing the indices of all variables involved in this
 	 *         assignment
 	 */
@@ -154,7 +167,7 @@ public class Assignment {
 
 	/**
 	 * Check whether this assignment is empty.
-	 * 
+	 *
 	 * @return true iff no variable is assigned any subsumer
 	 */
 	boolean isEmpty() {
@@ -170,7 +183,7 @@ public class Assignment {
 	 * reachable from 'a' in the graph representation of the current assignment.
 	 * It is important that the current assignment is acyclic; otherwise, this
 	 * implementation might not terminate.
-	 * 
+	 *
 	 * @param a
 	 *            the start variable
 	 * @param b
@@ -194,7 +207,7 @@ public class Assignment {
 
 	/**
 	 * Checks if a new assignment would make this assignment cyclic.
-	 * 
+	 *
 	 * @param var
 	 *            the variable index
 	 * @param at
@@ -212,7 +225,7 @@ public class Assignment {
 
 	/**
 	 * Checks if a new assignment would make this assignment cyclic.
-	 * 
+	 *
 	 * @param var
 	 *            the variable index
 	 * @param newAtoms

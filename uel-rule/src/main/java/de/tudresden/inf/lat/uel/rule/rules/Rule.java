@@ -1,7 +1,7 @@
 package de.tudresden.inf.lat.uel.rule.rules;
 
 import de.tudresden.inf.lat.uel.rule.Assignment;
-import de.tudresden.inf.lat.uel.rule.FlatSubsumption;
+import de.tudresden.inf.lat.uel.rule.FlatConstraint;
 import de.tudresden.inf.lat.uel.rule.Result;
 
 /**
@@ -18,24 +18,24 @@ public abstract class Rule {
 
 	/**
 	 * Returns the first possible application of this rule to the given
-	 * subsumption.
+	 * subsumption or dissubsumption.
 	 * 
-	 * @param sub
-	 *            the subsumption this rule shall be applied to
+	 * @param con
+	 *            the subsumption or dissubsumption this rule shall be applied to
 	 * @param assign
 	 *            the current assignment
 	 * @return a rule application describing the arguments needed to apply this
 	 *         rule or 'null' if the rule is not applicable
 	 */
-	public abstract Application getFirstApplication(FlatSubsumption sub, Assignment assign);
+	public abstract Application getFirstApplication(FlatConstraint con, Assignment assign);
 
 	/**
-	 * Returns the next application of this rule to the given subsumption. It is
-	 * important that the parameters 'sub' and 'assign' are the same as those
+	 * Returns the next application of this rule to the given subsumption or dissubsumption. It is
+	 * important that the parameters 'con' and 'assign' are the same as those
 	 * used to obtain 'previous'.
 	 * 
-	 * @param sub
-	 *            the subsumption this rule shall be applied to
+	 * @param con
+	 *            the subsumption or dissubsumption this rule shall be applied to
 	 * @param assign
 	 *            the current assignment
 	 * @param previous
@@ -44,23 +44,23 @@ public abstract class Rule {
 	 * @return a rule application describing the arguments needed to apply this
 	 *         rule or 'null' if there are no more ways to apply this rule
 	 */
-	public abstract Application getNextApplication(FlatSubsumption sub, Assignment assign, Application previous);
+	public abstract Application getNextApplication(FlatConstraint con, Assignment assign, Application previous);
 
 	/**
-	 * Applies this rule to the given subsumption using the arguments stored in
-	 * 'application' and returns the resulting change to the set of subsumptions
-	 * and the current assignment. It is important that the parameters 'sub' and
+	 * Applies this rule to the given subsumption or dissubsumption using the arguments stored in
+	 * 'application' and returns the resulting change to the set of subsumptions or dissubsumptions
+	 * and the current assignment. It is important that the parameters 'con' and
 	 * 'assign' are the same as those used to obtain 'application'.
 	 * 
-	 * @param sub
-	 *            the subsumption this rule shall be applied to
+	 * @param con
+	 *            the subsumption or dissubsumption this rule shall be applied to
 	 * @param assign
 	 *            the current assignment
 	 * @param application
 	 *            application
 	 * @return the result of the application
 	 */
-	public abstract Result apply(FlatSubsumption sub, Assignment assign, Application application);
+	public abstract Result apply(FlatConstraint con, Assignment assign, Application application);
 
 	/**
 	 * A shortcut that can be used to identify the type of this rule in a string

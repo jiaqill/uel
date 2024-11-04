@@ -1,7 +1,7 @@
 package de.tudresden.inf.lat.uel.rule.rules;
 
 import de.tudresden.inf.lat.uel.rule.Assignment;
-import de.tudresden.inf.lat.uel.rule.FlatSubsumption;
+import de.tudresden.inf.lat.uel.rule.FlatConstraint;
 import de.tudresden.inf.lat.uel.rule.Result;
 import de.tudresden.inf.lat.uel.type.api.Atom;
 
@@ -14,12 +14,14 @@ import de.tudresden.inf.lat.uel.type.api.Atom;
 public final class EagerSolving2Rule extends EagerRule {
 
 	@Override
-	public Application getFirstApplication(FlatSubsumption sub, Assignment assign) {
-		Atom head = sub.getHead();
-		for (Atom at : sub.getBody()) {
-			if (at.isVariable()) {
-				if (assign.getSubsumers(at).contains(head)) {
-					return new Application();
+	public Application getFirstApplication(FlatConstraint sub, Assignment assign) {
+		if (!sub.isDissubsumption()) {
+			Atom head = sub.getHead();
+			for (Atom at : sub.getBody()) {
+				if (at.isVariable()) {
+					if (assign.getSubsumers(at).contains(head)) {
+						return new Application();
+					}
 				}
 			}
 		}
@@ -27,13 +29,14 @@ public final class EagerSolving2Rule extends EagerRule {
 	}
 
 	@Override
-	public Result apply(FlatSubsumption sub, Assignment assign, Application application) {
+	public Result apply(FlatConstraint sub, Assignment assign, Application application) {
+		System.out.println("ES2 has been applied" + sub);
 		return new Result(sub, application);
 	}
 
 	@Override
 	public String shortcut() {
-		return "ES1";
+		return "ES2";
 	}
 
 }
