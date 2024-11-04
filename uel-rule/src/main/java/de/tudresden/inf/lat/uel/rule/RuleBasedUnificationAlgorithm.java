@@ -23,21 +23,21 @@ import de.tudresden.inf.lat.uel.type.impl.Unifier;
 /**
  * This class is used to solve a disunification problem using a rule-based
  * unification algorithm for EL.
- * 
+ *
  * This algorithm is described in: Franz Baader, Stefan Borgwardt, and Barbara
  * Morawska. 'Unification in the description logic EL w.r.t. cycle-restricted
  * TBoxes'. LTCS-Report 11-05, Chair for Automata Theory, Institute for
  * Theoretical Computer Science, Technische Universitaet Dresden, Dresden,
  * Germany, 2011. See https://lat.inf.tu-dresden.de/research/reports.html.
- * 
+ *
  * Based on the algorithm in: Franz Baader and Barbara Morawska. 'Unification in
  * the description logic EL'. Logical Methods in Computer Science, 6(3), 2010.
  * Special Issue: 20th Int. Conf. on Rewriting Techniques and Applications
  * (RTA'09).
- * 
+ *
  * @author Stefan Borgwardt
  */
-public class RuleBasedDisunificationAlgorithm implements UnificationAlgorithm {
+public class RuleBasedUnificationAlgorithm implements UnificationAlgorithm {
 
 	private static final String keyName = "Name";
 	private static final String keyInitialCons = "Initial number of constraints";
@@ -64,12 +64,12 @@ public class RuleBasedDisunificationAlgorithm implements UnificationAlgorithm {
 
 	/**
 	 * Initialize a new disunification problem with goal subsumptions and dissubsumptions.
-	 * 
+	 *
 	 * @param input
 	 *            a UelInput object that will return the subsumptions and dissubsumptions to be
 	 *            solved
 	 */
-	public RuleBasedDisunificationAlgorithm(Goal input) {
+	public RuleBasedUnificationAlgorithm(Goal input) {
 		this.goal = new NormalizedGoal(input);
 		this.input = input;
 //		if (input.hasNegativePart()) {
@@ -77,14 +77,7 @@ public class RuleBasedDisunificationAlgorithm implements UnificationAlgorithm {
 //					"The rule-based algorithm cannot deal with dissubsubmptions or disequations!");
 //		}
 		this.nonVariableAtoms = input.getAtomManager().getNonvariableAtoms();
-		//System.out.println("---" + nonvariableAtoms);
-		// System.out.println(nonvariableAtoms);
-		//System.out.println("---" + input.getSubsumptions());
-		//System.out.println("---" + input.getDissubsumptions());
-		//System.out.println("---" + getInfo());
 		this.assignment = new Assignment(nonVariableAtoms);
-		//System.out.println("---" + assignment.getNonVariableAtoms());
-		//this.assignment = new Assignment();
 		this.initialSize = goal.size();
 		this.numVariables = input.getAtomManager().getVariables().size();
 
@@ -166,7 +159,7 @@ public class RuleBasedDisunificationAlgorithm implements UnificationAlgorithm {
 	 * If at least one unifier has already been computed, this method tries to
 	 * compute the next unifier. If there are no more unifiers, 'false' is
 	 * returned.
-	 * 
+	 *
 	 * @return true iff the current assignment represents a unifier of the goal
 	 *         subsumptions and dissubsumptions
 	 */
@@ -174,16 +167,8 @@ public class RuleBasedDisunificationAlgorithm implements UnificationAlgorithm {
 		if (searchStack == null) {
 			searchStack = new ArrayDeque<>();
 
-			for (FlatConstraint con : goal) {
-				System.out.println("all cons: " + con);
-			}
-
-			System.out.println("begin Apply static eager rules");
-
 			// apply eager rules to each unsolved subsumption and dissubsumption
 			Result res = applyEagerRules(goal, staticEagerRules, null);
-
-			System.out.println("Applied static eager rules, success: " + res.wasSuccessful());
 
 			if (!res.wasSuccessful())
 				return false;
@@ -191,21 +176,13 @@ public class RuleBasedDisunificationAlgorithm implements UnificationAlgorithm {
 				con.setSolved(true);
 			}
 
-			System.out.println("begin Apply dynamic eager rules");
-
 			Assignment tmp = new Assignment(nonVariableAtoms);
 			res = applyEagerRules(goal, dynamicEagerRules, tmp);
-
-			System.out.println("Applied dynamic eager rules, success: " + res.wasSuccessful());
 
 			if (!res.wasSuccessful())
 				return false;
 			if (!commitResult(res, tmp)) {
-				System.out.println("Commit result failed");
 				return false;
-			}
-			else {
-				System.out.println("Commit result success");
 			}
 
 			// exhaustively apply eager rules to the result of this initial
@@ -216,15 +193,10 @@ public class RuleBasedDisunificationAlgorithm implements UnificationAlgorithm {
 		} else {
 			// we already have a search stack --> try to backtrack from last
 			// solution
-			System.out.println("Attempting to backtrack");
 			if (!backtrack()) {
-
-				System.out.println("Backtracking failed");
 				return false;
 			}
 		}
-		System.out.println("Calling solve()");
-		System.out.println("assignment: " + assignment);
 		return solve();
 
 	}
@@ -259,27 +231,17 @@ public class RuleBasedDisunificationAlgorithm implements UnificationAlgorithm {
 			deadEnds++;
 			if (!backtrack())
 				return false;
-			System.out.println("assignment after solve(): " + assignment);
 		}
 	}
 
 	private boolean backtrack() {
-		System.out.println("Entering backtrack method");
 		while (!searchStack.isEmpty()) {
-			System.out.println("Current search stack size: " + searchStack.size() + searchStack);
 			Result res = searchStack.pop();
-			System.out.println("Popped from search stack: " + res);
 			rollBackResult(res);
-			System.out.println("Rolled back result for: " + res.getConstraint());
 			if (applyNextNondeterministicRule(res.getConstraint(), res.getApplication())) {
-				System.out.println("Successfully applied a non-deterministic rule, continuing search.");
 				return true;
 			}
-			else {
-				System.out.println("Failed to apply non-deterministic rule, continuing backtracking.");
-			}
 		}
-		System.out.println("Search stack is empty, backtracking failed.");
 		return false;
 	}
 
@@ -292,7 +254,7 @@ public class RuleBasedDisunificationAlgorithm implements UnificationAlgorithm {
 	}
 
 	private Result applyEagerRules(Collection<FlatConstraint> cons, List<EagerRule> rules,
-			Assignment currentAssignment) {
+								   Assignment currentAssignment) {
 		Result res = new Result(null, null);
 		for (FlatConstraint con : cons) {
 			if (!con.isSolved()) {
@@ -304,7 +266,6 @@ public class RuleBasedDisunificationAlgorithm implements UnificationAlgorithm {
 					}
 					if (!r.wasSuccessful())
 						return r;
-					System.out.println("TRYAPPLY" +rule + con);
 					res.getSolvedConstraints().add(con);
 					res.getNewSubsumers().addAll(r.getNewSubsumers());
 					res.getNewUnsolvedConstraints().addAll(r.getNewUnsolvedConstraints());
@@ -319,25 +280,20 @@ public class RuleBasedDisunificationAlgorithm implements UnificationAlgorithm {
 	}
 
 	private boolean applyNextNondeterministicRule(FlatConstraint con, Rule.Application previous) {
-		System.out.println("Applying next non-deterministic rule for constraint: " + con);
 		Iterator<Rule> iter = nondeterministicRules
 				.listIterator((previous == null) ? 0 : nondeterministicRules.indexOf(previous.rule()));
 
 		while (iter.hasNext()) {
 			Rule rule = iter.next();
-			System.out.println("Trying rule: " + rule);
 			while (true) {
 				Result res = tryApplyRule(con, rule, previous, assignment);
 				if (res == null) {
-					System.out.println("Rule application returned null, breaking.");
 					break;
 				}
 				previous = res.getApplication();
 				if (!res.wasSuccessful()) {
-					System.out.println("Rule application unsuccessful, continuing with next rule.");
 					continue;
 				}
-				System.out.println("Rule application successful: " + res);
 
 				// now 'res' is the result of a successful nondeterministic rule
 				// application ->
@@ -345,21 +301,17 @@ public class RuleBasedDisunificationAlgorithm implements UnificationAlgorithm {
 				if (!commitResult(res, null)) {
 					// application of static eager rules failed -> roll back
 					// changes and continue search
-					System.out.println("Commit result failed, rolling back.");
 					deadEnds++;
 					rollBackResult(res);
 					continue;
 				}
-				System.out.println("Commit result successful.");
 
 				if (!applyEagerRules(res)) {
 					// exhaustive application of eager rules failed
-					System.out.println("Apply eager rules failed, rolling back.");
 					deadEnds++;
 					rollBackResult(res);
 					continue;
 				}
-				System.out.println("Eager rules applied successfully, pushing result to search stack.");
 
 				searchStack.push(res);
 				treeSize++;
@@ -367,13 +319,12 @@ public class RuleBasedDisunificationAlgorithm implements UnificationAlgorithm {
 			}
 			previous = null;
 		}
-		System.out.println("No more rules to apply, returning false.");
 		return false;
 	}
 
 	/**
 	 * Exhaustively apply all applicable eager rules to the goal subsumptions and dissubsumptions.
-	 * 
+	 *
 	 * @param parent
 	 *            the previous result of a nondeterministic rule application to
 	 *            which the results of the eager rule applications should be
@@ -392,8 +343,6 @@ public class RuleBasedDisunificationAlgorithm implements UnificationAlgorithm {
 
 			// apply dynamic eager rules to each new unsolved subsumption and dissubsumption
 			{
-				System.out.println("1unsolved constraints: " + currentResult.getNewUnsolvedConstraints());
-
 				Result res2 = applyEagerRules(currentResult.getNewUnsolvedConstraints(), dynamicEagerRules, tmp);
 				//System.out.println("2unsolved constraints: " + res2.getNewUnsolvedConstraints());
 				if (!res2.wasSuccessful())
@@ -434,7 +383,7 @@ public class RuleBasedDisunificationAlgorithm implements UnificationAlgorithm {
 
 	/**
 	 * Try to apply a rule to a given subsumption.
-	 * 
+	 *
 	 * @param rule
 	 *            the rule to be applied
 	 * @param con
@@ -473,7 +422,7 @@ public class RuleBasedDisunificationAlgorithm implements UnificationAlgorithm {
 	 * are made. For example, a created subsumption that is already in the goal
 	 * is removed from the result. Additionally, the result of goal expansion is
 	 * added to the result.
-	 * 
+	 *
 	 * @param res
 	 *            the result to be considered; will be changed in-place
 	 * @param newAssignment
@@ -487,8 +436,6 @@ public class RuleBasedDisunificationAlgorithm implements UnificationAlgorithm {
 		if (res.getConstraint() != null) {
 			res.getConstraint().setSolved(true);
 		}
-
-		System.out.println("all unsolved constraints: " + res.getNewUnsolvedConstraints());
 
 		// add new unsolved subsumptions to the goal
 		res.getNewUnsolvedConstraints().removeAll(goal);
@@ -513,8 +460,6 @@ public class RuleBasedDisunificationAlgorithm implements UnificationAlgorithm {
 		}
 		res.getNewUnsolvedConstraints().removeAll(res.getNewSolvedConstraints());
 
-//		res.getNewSolvedConstraints().removeAll(res.getSolvedConstraints());
-//		res.getSolvedConstraints().addAll(res.getNewSolvedConstraints());
 		// goal expansion (I)
 		for (FlatConstraint con : res.getNewSolvedConstraints()) {
 			if (!con.isDissubsumption()) {
@@ -535,10 +480,6 @@ public class RuleBasedDisunificationAlgorithm implements UnificationAlgorithm {
 		for (FlatConstraint con : res.getSolvedConstraints()) {
 			con.setSolved(true);
 		}
-//		for (FlatConstraint con : res.getNewSolvedConstraints()) {
-//			con.setSolved(true);
-//		}
-
 
 		// update current assignment
 		res.getNewSubsumers().removeAll(assignment);
@@ -550,10 +491,7 @@ public class RuleBasedDisunificationAlgorithm implements UnificationAlgorithm {
 
 		// goal expansion (II)
 		Set<FlatConstraint> newCons = goal.expand(res.getNewSubsumers());
-		//newCons.removeAll(res.getNewUnsolvedConstraints());
 		res.getNewUnsolvedConstraints().addAll(newCons);
-
-		System.out.println("updated new unsolved cons: " + res.getNewUnsolvedConstraints());
 
 		// try to solve new unsolved subsumptions and dissubsumptions by static eager rules
 		Result eagerRes = applyEagerRules(res.getNewUnsolvedConstraints(), staticEagerRules, null);
@@ -564,17 +502,13 @@ public class RuleBasedDisunificationAlgorithm implements UnificationAlgorithm {
 			con.setSolved(true);
 		}
 
-//		for (FlatConstraint con : eagerRes.getNewSolvedConstraints()) {
-//			con.setSolved(true);
-//		}
 		res.amend(eagerRes);
-		System.out.println("all unsolved constraints: " + res.getNewUnsolvedConstraints());
 		return true;
 	}
 
 	/**
 	 * Undo the changes made to the goal by a result.
-	 * 
+	 *
 	 * @param res
 	 *            the result to undo
 	 */
