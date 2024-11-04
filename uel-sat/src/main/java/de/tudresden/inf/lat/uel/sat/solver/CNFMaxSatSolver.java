@@ -13,14 +13,14 @@ import java.util.StringTokenizer;
 
 import de.tudresden.inf.lat.uel.sat.type.SatInput;
 import de.tudresden.inf.lat.uel.sat.type.SatOutput;
-import de.tudresden.inf.lat.uel.sat.type.Solver;
+import de.tudresden.inf.lat.uel.sat.type.SatSolver;
 
 /**
  * This class runs an external MaxSAT solver on a constructed WCNF input file.
  *
  * @author Stefan Borgwardt
  */
-public class CNFMaxSatSolver implements Solver {
+public class CNFMaxSatSolver implements SatSolver {
 
 	/** the type constant for the AKMAXSAT solver */
 	public static final int AKMAXSAT = 2;
@@ -69,23 +69,25 @@ public class CNFMaxSatSolver implements Solver {
 
 		BufferedReader reader = new BufferedReader(new InputStreamReader(p.getInputStream()));
 
-		Set<Integer> clause = new HashSet<>();
-		boolean[] satisfiable = new boolean[1];
-		satisfiable[0] = false;
-		reader.lines() //
-				.filter(line -> line.startsWith("v")) //
-				.forEach(line -> {
-					satisfiable[0] = true;
-					StringTokenizer stok = new StringTokenizer(line.substring(2));
-					while (stok.hasMoreTokens()) {
-						clause.add(Integer.parseInt(stok.nextToken()));
-					}
-				});
+		Set<Integer> clause = new HashSet<Integer>();
+		String line = reader.readLine();
+		boolean satisfiable = false;
+
+		while (line != null) {
+			if (line.startsWith("v")) {
+				satisfiable = true;
+				StringTokenizer stok = new StringTokenizer(line.substring(2));
+				while (stok.hasMoreTokens()) {
+					clause.add(Integer.parseInt(stok.nextToken()));
+				}
+			}
+			line = reader.readLine();
+		}
 		reader.close();
 		p.destroy();
-		clause.remove(Solver.END_OF_CLAUSE);
+		clause.remove(SatSolver.END_OF_CLAUSE);
 
-		return new SatOutput(satisfiable[0], clause);
+		return new SatOutput(satisfiable, clause);
 	}
 
 	private void initCommandOptions(String command, String[] options) {
@@ -114,7 +116,7 @@ public class CNFMaxSatSolver implements Solver {
 
 		this.nbVars = input.getLastId();
 		BufferedWriter writer = new BufferedWriter(new FileWriter(this.inputFile));
-		writer.write(input.toWCNF(this.nbVars + 1));
+		writer.write(input.toWCNF((int) Math.pow(this.nbVars + 1, 3)));
 		writer.close();
 
 		return convertToSatOutput(solve());

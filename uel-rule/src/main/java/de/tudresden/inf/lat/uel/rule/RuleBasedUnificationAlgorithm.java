@@ -1,14 +1,13 @@
 package de.tudresden.inf.lat.uel.rule;
 
-import java.util.AbstractMap.SimpleEntry;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Deque;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map.Entry;
 import java.util.Set;
 
 import de.tudresden.inf.lat.uel.rule.rules.*;
@@ -17,7 +16,8 @@ import de.tudresden.inf.lat.uel.type.api.Atom;
 import de.tudresden.inf.lat.uel.type.api.AtomManager;
 import de.tudresden.inf.lat.uel.type.api.Definition;
 import de.tudresden.inf.lat.uel.type.api.Goal;
-import de.tudresden.inf.lat.uel.type.api.UnificationAlgorithm;
+import de.tudresden.inf.lat.uel.type.impl.AbstractUnificationAlgorithm;
+import de.tudresden.inf.lat.uel.type.impl.DefinitionSet;
 import de.tudresden.inf.lat.uel.type.impl.Unifier;
 
 /**
@@ -37,7 +37,7 @@ import de.tudresden.inf.lat.uel.type.impl.Unifier;
  *
  * @author Stefan Borgwardt
  */
-public class RuleBasedUnificationAlgorithm implements UnificationAlgorithm {
+public class RuleBasedUnificationAlgorithm extends AbstractUnificationAlgorithm {
 
 	private static final String keyName = "Name";
 	private static final String keyInitialCons = "Initial number of constraints";
@@ -51,56 +51,32 @@ public class RuleBasedUnificationAlgorithm implements UnificationAlgorithm {
 	private List<EagerRule> dynamicEagerRules;
 	private List<Rule> nondeterministicRules;
 
-	private Goal input;
-	private NormalizedGoal goal;
+	private NormalizedGoal normalizedGoal;
 	private Assignment assignment;
 	private List<Atom> nonVariableAtoms;
-	private final int initialSize;
+	//private final int initialSize;
 	private int treeSize = 1;
 	private int deadEnds = 0;
-	private final int numVariables;
 
 	private Deque<Result> searchStack = null;
 
 	/**
 	 * Initialize a new disunification problem with goal subsumptions and dissubsumptions.
 	 *
-	 * @param input
+	 * @param goal
 	 *            a UelInput object that will return the subsumptions and dissubsumptions to be
 	 *            solved
 	 */
-	public RuleBasedUnificationAlgorithm(Goal input) {
-		this.goal = new NormalizedGoal(input);
-		this.input = input;
-//		if (input.hasNegativePart()) {
-//			throw new UnsupportedOperationException(
-//					"The rule-based algorithm cannot deal with dissubsubmptions or disequations!");
-//		}
-		this.nonVariableAtoms = input.getAtomManager().getNonvariableAtoms();
-		this.assignment = new Assignment(nonVariableAtoms);
-		this.initialSize = goal.size();
-		this.numVariables = input.getAtomManager().getVariables().size();
-
-		for (FlatConstraint con : goal) {
-			if (!con.isDissubsumption()) {
-				if (con.getHead().isVariable()) {
-					// subsumptions with a variable on the right-hand side are
-					// always solved
-					con.setSolved(true);
-				}
-			}
-			else {
-				if (con.getBody().size() == 1 && con.getDissubsumptionHead().size() == 1) {
-					if (con.getBody().get(0).isVariable() && !con.getDissubsumptionHead().get(0).isVariable()) {
-						// dissubsumptions with a variable on the left-hand side and a non-variable atom
-						// on the right-hand aide are always solved
-						con.setSolved(true);
-					}
-				}
-			}
-
+	public RuleBasedUnificationAlgorithm(Goal goal) {
+		super(goal);
+		if (!goal.getTypes().isEmpty()) {
+			throw new UnsupportedOperationException("The rule-based algorithm cannot deal with type information!");
 		}
-
+		this.normalizedGoal = null;
+		this.nonVariableAtoms = goal.getAtomManager().getNonvariableAtoms();
+		this.assignment = new Assignment(nonVariableAtoms);
+		addInfo(keyName, algorithmName);
+		addInfo(keyNumberOfVariables, goal.getAtomManager().getVariables().size());
 		initRules();
 	}
 
@@ -110,23 +86,11 @@ public class RuleBasedUnificationAlgorithm implements UnificationAlgorithm {
 		searchStack = null;
 	}
 
-	public Goal getGoal() {
-		return input;
-	}
-
-	private boolean addEntry(List<Entry<String, String>> list, String key, String value) {
-		return list.add(new SimpleEntry<String, String>(key, value));
-	}
-
-	public List<Entry<String, String>> getInfo() {
-		List<Entry<String, String>> ret = new ArrayList<>();
-		addEntry(ret, keyName, algorithmName);
-		addEntry(ret, keyInitialCons, "" + initialSize);
-		addEntry(ret, keyMaxCons, "" + goal.getMaxSize());
-		addEntry(ret, keyTreeSize, "" + treeSize);
-		addEntry(ret, keyDeadEnds, "" + deadEnds);
-		addEntry(ret, keyNumberOfVariables, "" + numVariables);
-		return ret;
+	@Override
+	protected void updateInfo() {
+		addInfo(keyMaxCons, normalizedGoal.getMaxSize());
+		addInfo(keyTreeSize, treeSize);
+		addInfo(keyDeadEnds, deadEnds);
 	}
 
 	/**
@@ -164,21 +128,42 @@ public class RuleBasedUnificationAlgorithm implements UnificationAlgorithm {
 	 *         subsumptions and dissubsumptions
 	 */
 	public boolean computeNextUnifier() throws InterruptedException {
+		if (normalizedGoal == null) {
+			normalizedGoal = new NormalizedGoal(goal);
+			addInfo(keyInitialCons, normalizedGoal.size());
+			for (FlatConstraint con : normalizedGoal) {
+				if (!con.isDissubsumption()) {
+					if (con.getHead().isVariable()) {
+						// subsumptions with a variable on the right-hand side are
+						// always solved
+						con.setSolved(true);
+					}
+				}
+				else {
+					if (con.getBody().size() == 1 && con.getDissubsumptionHead().size() == 1) {
+						if (con.getBody().get(0).isVariable() && !con.getDissubsumptionHead().get(0).isVariable()) {
+							// dissubsumptions with a variable on the left-hand side and a non-variable atom
+							// on the right-hand aide are always solved
+							con.setSolved(true);
+						}
+					}
+				}
+			}
+			callbackPreprocessing();
+		}
+
 		if (searchStack == null) {
 			searchStack = new ArrayDeque<>();
 
-			// apply eager rules to each unsolved subsumption and dissubsumption
-			Result res = applyEagerRules(goal, staticEagerRules, null);
-
+			// apply eager rules to each unsolved subsumption
+			Result res = applyEagerRules(normalizedGoal, staticEagerRules, null);
 			if (!res.wasSuccessful())
 				return false;
 			for (FlatConstraint con : res.getSolvedConstraints()) {
 				con.setSolved(true);
 			}
-
 			Assignment tmp = new Assignment(nonVariableAtoms);
-			res = applyEagerRules(goal, dynamicEagerRules, tmp);
-
+			res = applyEagerRules(normalizedGoal, dynamicEagerRules, tmp);
 			if (!res.wasSuccessful())
 				return false;
 			if (!commitResult(res, tmp)) {
@@ -204,14 +189,14 @@ public class RuleBasedUnificationAlgorithm implements UnificationAlgorithm {
 	@Override
 	public Unifier getUnifier() {
 		// convert current assignment to a set of definitions
-		AtomManager atomManager = input.getAtomManager();
-		Set<Definition> definitions = new HashSet<>();
+		AtomManager atomManager = goal.getAtomManager();
+		DefinitionSet definitions = new DefinitionSet(atomManager.getVariables().size());
 		for (Integer varId : atomManager.getVariables()) {
 			Set<Integer> body = new HashSet<>();
 			for (Atom subsumer : assignment.getSubsumers(atomManager.getAtom(varId))) {
 				body.add(atomManager.getIndex(subsumer));
 			}
-			definitions.add(new Definition(varId, body, false));
+			definitions.add(new Definition(varId, Collections.unmodifiableSet(body), false));
 		}
 		return new Unifier(definitions);
 	}
@@ -246,7 +231,7 @@ public class RuleBasedUnificationAlgorithm implements UnificationAlgorithm {
 	}
 
 	private FlatConstraint chooseUnsolvedConstraint() {
-		for (FlatConstraint con : goal) {
+		for (FlatConstraint con : normalizedGoal) {
 			if (!con.isSolved())
 				return con;
 		}
@@ -357,9 +342,7 @@ public class RuleBasedUnificationAlgorithm implements UnificationAlgorithm {
 			//Assignment newSubsumers = nextResult.getNewSubsumers();
 			for (Atom var : newSubsumers.getKeys()) {
 				if (!newSubsumers.getSubsumers(var).isEmpty()) {
-					//System.out.println("3unsolved constraints: " + nextResult.getNewUnsolvedConstraints());
-					Result res = applyEagerRules(goal.getConstraintsByBodyVariable(var), dynamicEagerRules, tmp);
-					//System.out.println("4unsolved constraints: " + nextResult.getNewUnsolvedConstraints());
+					Result res = applyEagerRules(normalizedGoal.getConstraintsByBodyVariable(var), dynamicEagerRules, tmp);
 					if (!res.wasSuccessful())
 						return false;
 					nextResult.getSolvedConstraints().addAll(res.getSolvedConstraints());
@@ -396,22 +379,17 @@ public class RuleBasedUnificationAlgorithm implements UnificationAlgorithm {
 	 *         applications are possible
 	 */
 	private Result tryApplyRule(FlatConstraint con, Rule rule, Application previous, Assignment currentAssignment) {
-		//System.out.println("Attempting to apply rule: " + rule + " to constraint: " + con + " with previous application: " + previous);
 		Rule.Application next;
 		if (previous == null) {
 			next = rule.getFirstApplication(con, currentAssignment);
-			//System.out.println("First application: " + next);
 		} else {
 			next = rule.getNextApplication(con, currentAssignment, previous);
-			//System.out.println("Next application: " + next);
 		}
 		if (next == null) {
-			//System.out.println("No further applications possible for rule: " + rule);
 			return null;
 		}
 
 		Result res = rule.apply(con, currentAssignment, next);
-		//System.out.println("Rule application result: " + res);
 		return res;
 	}
 
@@ -437,9 +415,9 @@ public class RuleBasedUnificationAlgorithm implements UnificationAlgorithm {
 			res.getConstraint().setSolved(true);
 		}
 
-		// add new unsolved subsumptions to the goal
-		res.getNewUnsolvedConstraints().removeAll(goal);
-		goal.addAll(res.getNewUnsolvedConstraints());
+		// add new unsolved constraints to the goal
+		res.getNewUnsolvedConstraints().removeAll(normalizedGoal);
+		normalizedGoal.addAll(res.getNewUnsolvedConstraints());
 		for (FlatConstraint con : res.getNewUnsolvedConstraints()) {
 			if (!con.isDissubsumption()) {
 				if (con.getHead().isVariable()) {
@@ -467,11 +445,11 @@ public class RuleBasedUnificationAlgorithm implements UnificationAlgorithm {
 				 * we can assume that all new solved subsumptions have a variable in
 				 * the head
 				 */
-				Set<FlatConstraint> newSubs = goal.expand(con, assignment.getSubsumers(con.getHead()));
+				Set<FlatConstraint> newSubs = normalizedGoal.expand(con, assignment.getSubsumers(con.getHead()));
 				res.getNewUnsolvedConstraints().addAll(newSubs);
 			}
 			else {
-				Set<FlatConstraint> newSubs = goal.expand(con, assignment.getSubsumers(con.getBody().get(0)));
+				Set<FlatConstraint> newSubs = normalizedGoal.expand(con, assignment.getSubsumers(con.getBody().get(0)));
 				res.getNewUnsolvedConstraints().addAll(newSubs);
 			}
 		}
@@ -490,7 +468,7 @@ public class RuleBasedUnificationAlgorithm implements UnificationAlgorithm {
 		}
 
 		// goal expansion (II)
-		Set<FlatConstraint> newCons = goal.expand(res.getNewSubsumers());
+		Set<FlatConstraint> newCons = normalizedGoal.expand(res.getNewSubsumers());
 		res.getNewUnsolvedConstraints().addAll(newCons);
 
 		// try to solve new unsolved subsumptions and dissubsumptions by static eager rules
@@ -515,8 +493,8 @@ public class RuleBasedUnificationAlgorithm implements UnificationAlgorithm {
 	private void rollBackResult(Result res) {
 
 		assignment.removeAll(res.getNewSubsumers());
-		goal.removeAll(res.getNewSolvedConstraints());
-		goal.removeAll(res.getNewUnsolvedConstraints());
+		normalizedGoal.removeAll(res.getNewSolvedConstraints());
+		normalizedGoal.removeAll(res.getNewUnsolvedConstraints());
 
 		for (FlatConstraint con : res.getSolvedConstraints()) {
 			con.setSolved(false);

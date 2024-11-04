@@ -2,13 +2,13 @@ package de.tudresden.inf.lat.uel.plugin.ui;
 
 import java.awt.BorderLayout;
 import java.awt.Container;
-import java.awt.Dimension;
 import java.awt.GridLayout;
 import java.awt.event.ActionListener;
 import java.util.List;
 
 import javax.swing.DefaultComboBoxModel;
 import javax.swing.JButton;
+import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
@@ -44,6 +44,8 @@ class UelView extends JPanel {
 	private final JComboBox<OWLOntology> listOntologyBg01 = new JComboBox<OWLOntology>();
 	private final JComboBox<OWLOntology> listOntologyNeg = new JComboBox<OWLOntology>();
 	private final JComboBox<OWLOntology> listOntologyPos = new JComboBox<OWLOntology>();
+	private final JCheckBox checkSnomedMode = new JCheckBox();
+	private final JCheckBox checkExpandPrimitiveDefinitions = new JCheckBox();
 
 	/**
 	 * Construct the main view of UEL.
@@ -70,6 +72,10 @@ class UelView extends JPanel {
 		ontologyPanel.add(new JLabel(Message.textOntologyBg01));
 
 		ontologyPanel.add(UelUI.setupComboBox(listOntologyBg01, Message.tooltipComboBoxOntologyBg01));
+
+		ontologyPanel.add(UelUI.setupCheckBox(checkSnomedMode, false, Message.textSnomedMode));
+
+		ontologyPanel.add(UelUI.setupCheckBox(checkExpandPrimitiveDefinitions, true, Message.textExpandPrimitiveDefinitions));
 
 		ontologyPanel.add(new JLabel(Message.textOntologyPos));
 
@@ -117,6 +123,10 @@ class UelView extends JPanel {
 
 		return topPanel;
 	}
+	
+	public boolean getExpandPrimitiveDefinitions() {
+		return checkExpandPrimitiveDefinitions.isSelected();
+	}
 
 	/**
 	 * Return the currently selected unification algorithm.
@@ -163,6 +173,15 @@ class UelView extends JPanel {
 	 */
 	public OWLOntology getSelectedOntologyPos() {
 		return (OWLOntology) listOntologyPos.getSelectedItem();
+	}
+
+	/**
+	 * Return the state of the "SNOMED mode" checkbox.
+	 * 
+	 * @return 'true' iff SNOMED mode should be enabled
+	 */
+	public boolean getSnomedMode() {
+		return checkSnomedMode.isSelected();
 	}
 
 	/**
@@ -245,17 +264,6 @@ class UelView extends JPanel {
 	 */
 	public void setComboBoxOntologyPosEnabled(boolean b) {
 		this.listOntologyPos.setEnabled(b);
-	}
-
-	/**
-	 * Sets the currently selected negative goal ontology, if this ontology is
-	 * present in the list used in the last call of 'reloadOntologies'.
-	 * 
-	 * @param ontology
-	 *            the ontology that is to be selected
-	 */
-	public void setSelectedOntologyNeg(OWLOntology ontology) {
-		listOntologyNeg.setSelectedItem(ontology);
 	}
 
 }

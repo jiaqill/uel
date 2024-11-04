@@ -5,26 +5,26 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map.Entry;
 import java.util.Set;
+import java.util.stream.Stream;
 
 import org.semanticweb.owlapi.apibinding.OWLManager;
-import org.semanticweb.owlapi.model.AxiomType;
 import org.semanticweb.owlapi.model.IRI;
 import org.semanticweb.owlapi.model.OWLAxiom;
 import org.semanticweb.owlapi.model.OWLClass;
-import org.semanticweb.owlapi.model.OWLDataFactory;
-import org.semanticweb.owlapi.model.OWLEquivalentClassesAxiom;
 import org.semanticweb.owlapi.model.OWLOntology;
 import org.semanticweb.owlapi.model.OWLOntologyCreationException;
-import org.semanticweb.owlapi.model.OWLSubClassOfAxiom;
 
+import de.tudresden.inf.lat.uel.core.processor.UelOptions.UndefBehavior;
+import de.tudresden.inf.lat.uel.core.processor.UelOptions.Verbosity;
 import de.tudresden.inf.lat.uel.core.renderer.OWLRenderer;
 import de.tudresden.inf.lat.uel.core.renderer.StringRenderer;
 import de.tudresden.inf.lat.uel.type.api.AtomManager;
-import de.tudresden.inf.lat.uel.type.api.Definition;
 import de.tudresden.inf.lat.uel.type.api.Goal;
 import de.tudresden.inf.lat.uel.type.api.UnificationAlgorithm;
 import de.tudresden.inf.lat.uel.type.impl.AtomManagerImpl;
+import de.tudresden.inf.lat.uel.type.impl.DefinitionSet;
 import de.tudresden.inf.lat.uel.type.impl.Unifier;
 
 /**
@@ -49,12 +49,14 @@ public class UelModel {
 		}
 	}
 
+	private UnificationAlgorithm algorithm;
 	private boolean allUnifiersFound;
 	private AtomManager atomManager;
 	private int currentUnifierIndex;
 	private UelOntologyGoal goal;
+	private UelOptions options;
+	private UnifierPostprocessor postprocessor;
 	private OntologyProvider provider;
-	private UnificationAlgorithm algorithm;
 	private List<Unifier> unifierList;
 
 	/**
@@ -63,9 +65,12 @@ public class UelModel {
 	 * @param provider
 	 *            the OntologyProvider that should be used to load ontologies
 	 *            and short forms
+	 * @param options
+	 *            the UelOptions that specify the parameters for unification
 	 */
-	public UelModel(OntologyProvider provider) {
+	public UelModel(OntologyProvider provider, UelOptions options) {
 		this.provider = provider;
+		this.options = options;
 	}
 
 	/**
@@ -91,6 +96,13 @@ public class UelModel {
 		}
 	}
 
+	public void cleanupUnificationAlgorithm() {
+		if (algorithm != null) {
+			algorithm.cleanup();
+			algorithm = null;
+		}
+	}
+
 	/**
 	 * Uses the unification algorithm to obtain the next unifier. This method
 	 * iterates as long as the unification algorithm returns unifiers that are
@@ -102,39 +114,79 @@ public class UelModel {
 	 *             outside
 	 */
 	public boolean computeNextUnifier() throws InterruptedException {
+		boolean first = false;
 		if (!allUnifiersFound) {
 			while (algorithm.computeNextUnifier()) {
+				first = false;
+
+				if (Thread.interrupted()) {
+					throw new InterruptedException();
+				}
+
 				Unifier result = algorithm.getUnifier();
-				if (isNew(result)) {
+				if (options.minimizeSolutions) {
+					result = postprocessor.minimizeUnifier(result);
+				}
+
+				if (options.noEquivalentSolutions && !isNew(result)) {
+					if (options.verbosity == Verbosity.FULL) {
+						System.out.print(".");
+					}
+					continue;
+				} else {
 					unifierList.add(result);
+
+					if (options.verbosity.level > 1) {
+						if (unifierList.size() == 1) {
+							first = true;
+							printAlgorithmInfo();
+						}
+					}
+
+					if (options.verbosity.level > 0) {
+						System.out
+								.println("Unifier " + unifierList.size() + ((options.verbosity.level > 1) ? ":" : ""));
+					}
+
+					switch (options.verbosity) {
+					case FULL:
+						System.out.println(getStringRenderer(null).renderUnifier(result, true, true));
+						break;
+					case NORMAL:
+						System.out.println(printUnifier(result));
+						break;
+					default:
+						break;
+					}
+
 					return true;
 				}
 			}
 		}
 		allUnifiersFound = true;
+		if (options.verbosity.level > 1) {
+			if (!first) {
+				printAlgorithmInfo();
+			}
+		}
 		return false;
 	}
 
 	/**
-	 * Creates a new anonymous ontology.
+	 * Creates a new anonymous ontology containing all axioms of the given one.
 	 * 
+	 * @param original
+	 *            the original ontology
 	 * @return the new ontology
 	 */
-	public OWLOntology createOntology() {
-		return provider.createOntology();
-	}
-
-	private boolean equalsModuloUserVariables(Set<Definition> defs1, Set<Definition> defs2) {
-		// since both unifiers must define all variables, it suffices to check
-		// one inclusion
-		for (Definition def1 : defs1) {
-			if (atomManager.getUserVariables().contains(def1.getDefiniendum())) {
-				if (!defs2.contains(def1)) {
-					return false;
-				}
-			}
+	public OWLOntology createOntology(OWLOntology original) {
+		try {
+			OWLOntology newOntology = OWLManager.createOWLOntologyManager().createOntology();
+			newOntology.getOWLOntologyManager().addAxioms(newOntology, original.getAxioms());
+			return newOntology;
+		} catch (OWLOntologyCreationException ex) {
+			throw new RuntimeException(ex);
 		}
-		return true;
 	}
 
 	/**
@@ -146,7 +198,7 @@ public class UelModel {
 	 * @return the id of the atom representing 'name'
 	 */
 	public Integer getAtomId(String name) {
-		return atomManager.createConceptName(name);
+		return atomManager.createConceptName(name, false);
 	}
 
 	/**
@@ -193,14 +245,34 @@ public class UelModel {
 	}
 
 	/**
+	 * Return the current options.
+	 * 
+	 * @return the current options
+	 */
+	public UelOptions getOptions() {
+		return options;
+	}
+
+	/**
 	 * Construct a renderer for output of unifiers etc. as OWL API objects.
 	 * 
 	 * @param background
 	 *            the background definitions used for formatting unifiers
 	 * @return a new OWLRenderer object
 	 */
-	public OWLRenderer getOWLRenderer(Set<Definition> background) {
+	public OWLRenderer getOWLRenderer(DefinitionSet background) {
 		return new OWLRenderer(atomManager, background);
+	}
+
+	private OWLClass getOWLThing(OWLClass owlThingAlias, boolean snomedMode) {
+		if (owlThingAlias != null)
+			return owlThingAlias;
+		else if (snomedMode)
+			// 'SNOMED CT Concept'
+			return OWLManager.getOWLDataFactory().getOWLClass(IRI.create(options.snomedCtConceptUri));
+		else
+			// owl:Thing
+			return OWLManager.getOWLDataFactory().getOWLThing();
 	}
 
 	/**
@@ -211,7 +283,7 @@ public class UelModel {
 	 *            the background definitions used for formatting unifiers
 	 * @return a new StringRenderer object
 	 */
-	public StringRenderer getStringRenderer(Set<Definition> background) {
+	public StringRenderer getStringRenderer(DefinitionSet background) {
 		return StringRenderer.createInstance(atomManager, provider, background);
 	}
 
@@ -249,18 +321,23 @@ public class UelModel {
 
 	/**
 	 * Initializes the unification algorithm with the current goal.
-	 * 
-	 * @param name
-	 *            The string identifier of the unification algorithm, as defined
-	 *            by 'UnificationAlgorithmFactory'
 	 */
-	public void initializeUnificationAlgorithm(String name) {
-		algorithm = UnificationAlgorithmFactory.instantiateAlgorithm(name, goal);
+	public void initializeUnificationAlgorithm() {
+		unifierList = new ArrayList<Unifier>();
+		currentUnifierIndex = -1;
+		allUnifiersFound = false;
+		algorithm = UnificationAlgorithmFactory.instantiateAlgorithm(options.unificationAlgorithmName, goal);
+		algorithm.setShortFormMap(getStringRenderer(null)::getShortForm);
+		postprocessor = new UnifierPostprocessor(atomManager, goal, getStringRenderer(null));
 	}
 
-	private boolean isNew(Unifier result) {
-		for (Unifier unifier : unifierList) {
-			if (equalsModuloUserVariables(unifier.getDefinitions(), result.getDefinitions())) {
+	private boolean isNew(Unifier newUnifier) throws InterruptedException {
+		for (Unifier oldUnifier : unifierList) {
+			if (Thread.interrupted()) {
+				throw new InterruptedException();
+			}
+
+			if (postprocessor.areEquivalent(oldUnifier, newUnifier)) {
 				return false;
 			}
 		}
@@ -278,65 +355,43 @@ public class UelModel {
 		provider.loadOntology(file);
 	}
 
-	/**
-	 * Marks a given set of variables as user variables.
-	 * 
-	 * @param variables
-	 *            a set of variables given as instances of OWLClass
-	 */
-	public void makeClassesUserVariables(Set<OWLClass> variables) {
-		for (OWLClass var : variables) {
-			atomManager.makeUserVariable(getAtomId(var.toStringID()));
-		}
+	private void makeAllUndefClassesVariables(boolean userVariables) {
+		// first copy the list of constants since we need to modify it
+		Set<Integer> constants = new HashSet<Integer>(atomManager.getConstants());
+		makeIdsVariables(
+				constants.stream().filter(id -> atomManager.printConceptName(id).endsWith(AtomManager.UNDEF_SUFFIX)),
+				userVariables);
+	}
+
+	private void makeClassesVariables(Stream<OWLClass> variables, boolean addUndefSuffix, boolean userVariables) {
+		makeNamesVariables(
+				variables.map(
+						addUndefSuffix ? (cls -> cls.toStringID() + AtomManager.UNDEF_SUFFIX) : (OWLClass::toStringID)),
+				userVariables);
+	}
+
+	private void makeIdsVariables(Stream<Integer> variables, boolean userVariables) {
+		variables.forEach(userVariables ? atomManager::makeUserVariable : atomManager::makeDefinitionVariable);
 	}
 
 	/**
-	 * Marks a given set of variables as user variables.
+	 * Marks the given concept names as variables.
 	 * 
 	 * @param variables
-	 *            a set of variable names
+	 *            a stream of concept names
+	 * @param userVariables
+	 *            indicates whether the concept names should be user variables
+	 *            ('true') or definition variables ('false')
 	 */
-	public void makeNamesUserVariables(Set<String> variables) {
-		for (String var : variables) {
-			atomManager.makeUserVariable(getAtomId(var));
-		}
+	public void makeNamesVariables(Stream<String> variables, boolean userVariables) {
+		makeIdsVariables(variables.map(this::getAtomId), userVariables);
 	}
 
-	/**
-	 * Marks the 'undef' versions of a given set of variables as user variables.
-	 * 
-	 * @param variables
-	 *            a set of variables given as instances of OWLClass
-	 */
-	public void makeUndefClassesUserVariables(Set<OWLClass> variables) {
-		for (OWLClass var : variables)
-			atomManager.makeUserVariable(getAtomId(var.toStringID() + AtomManager.UNDEF_SUFFIX));
-	}
-
-	/**
-	 * Marks the 'undef' versions of a given set of variables as user variables.
-	 * 
-	 * @param variables
-	 *            a set of variable names
-	 */
-	public void makeUndefNamesUserVariables(Set<String> variables) {
-		for (String var : variables) {
-			atomManager.makeUserVariable(getAtomId(var + AtomManager.UNDEF_SUFFIX));
-		}
-	}
-
-	/**
-	 * Marks all 'undef' variables as user variables.
-	 */
-	public void makeAllUndefClassesUserVariables() {
-		// mark all "_UNDEF" variables as user variables
-		// copy the list of constants since we need to modify it
-		Set<Integer> constants = new HashSet<>(atomManager.getConstants());
-		for (Integer atomId : constants) {
-			String name = atomManager.printConceptName(atomId);
-			if (name.endsWith(AtomManager.UNDEF_SUFFIX)) {
-				atomManager.makeUserVariable(atomId);
-			}
+	private void printAlgorithmInfo() {
+		System.out.println("Information about the algorithm:");
+		for (Entry<String, String> e : algorithm.getInfo()) {
+			System.out.println(e.getKey() + ":");
+			System.out.println(e.getValue());
 		}
 	}
 
@@ -359,7 +414,22 @@ public class UelModel {
 	 * @return a string representation of the unification goal
 	 */
 	public String printGoal() {
-		return getStringRenderer(null).renderGoal(goal);
+		return getStringRenderer(null).renderGoal(goal, true);
+	}
+
+	private void printGoalInfo() {
+		// output unification problem
+		System.out.println("Number of atoms: " + atomManager.size());
+		System.out.println("Number of constants: " + atomManager.getConstants().size());
+		System.out.println("Number of variables: " + atomManager.getVariables().size());
+		System.out.println("Number of user variables: " + atomManager.getUserVariables().size());
+		System.out.println("Number of definitions: " + goal.getDefinitions().size());
+		System.out.println("Number of equations: " + goal.getEquations().size());
+		System.out.println("Number of disequations: " + goal.getDisequations().size());
+		System.out.println("Number of subsumptions: " + goal.getSubsumptions().size());
+		System.out.println("Number of dissubsumptions: " + goal.getDissubsumptions().size());
+		System.out.println("(Dis-)Unification problem:");
+		System.out.println(printGoal());
 	}
 
 	/**
@@ -370,7 +440,7 @@ public class UelModel {
 	 * @return a string representation of the unifier
 	 */
 	public String printUnifier(Unifier unifier) {
-		return getStringRenderer(unifier.getDefinitions()).renderUnifier(unifier);
+		return getStringRenderer(unifier.getDefinitions()).renderUnifier(unifier, false, true);
 	}
 
 	/**
@@ -392,7 +462,7 @@ public class UelModel {
 	 * @return the OWL representation of the background definitions
 	 */
 	public Set<OWLAxiom> renderDefinitions() {
-		return getOWLRenderer(null).renderAxioms(goal.getDefinitions());
+		return getOWLRenderer(null).renderAxioms(goal.getDefinitions().values());
 	}
 
 	/**
@@ -403,7 +473,28 @@ public class UelModel {
 	 * @return the OWL representation of the unifier
 	 */
 	public Set<OWLAxiom> renderUnifier(Unifier unifier) {
-		return getOWLRenderer(unifier.getDefinitions()).renderUnifier(unifier);
+		return getOWLRenderer(unifier.getDefinitions()).renderUnifier(unifier, false, false);
+	}
+
+	/**
+	 * Replace the given atom by its UNDEF version, if it exists; otherwise,
+	 * return the input.
+	 * 
+	 * @param atomId
+	 *            the id of the atom
+	 * @return the atom, possibly replaced by its UNDEF version
+	 */
+	public Integer replaceByUndefId(Integer atomId) {
+		if (atomManager.getDefinitionVariables().contains(atomId)) {
+			for (Integer undefId : goal.getDefinition(atomId).getRight()) {
+				if (atomManager.getAtom(undefId).isConceptName()) {
+					if (atomManager.printConceptName(undefId).endsWith(AtomManager.UNDEF_SUFFIX)) {
+						return undefId;
+					}
+				}
+			}
+		}
+		return atomId;
 	}
 
 	/**
@@ -438,69 +529,74 @@ public class UelModel {
 	 *            the positive part of the unification problem
 	 * @param negativeProblem
 	 *            the negative part of the unification problem
-	 * @param owlThingAlias
-	 *            (optional) an alias for owl:Thing, e.g., 'SNOMED CT Concept'
+	 * @param constraintOntology
+	 *            additional negative constraints to be added after all
+	 *            pre-processing
+	 * @param userVariables
+	 *            a set of OWLClasses to be marked as user variables
 	 * @param resetShortFormCache
-	 *            reset short form cache
+	 *            indicates whether the cached short forms should be reloaded
+	 *            from the OntologyProvider
 	 */
 	public void setupGoal(Set<OWLOntology> bgOntologies, OWLOntology positiveProblem, OWLOntology negativeProblem,
-			OWLClass owlThingAlias, boolean resetShortFormCache) {
-		setupGoal(bgOntologies, positiveProblem.getAxioms(AxiomType.SUBCLASS_OF),
-				positiveProblem.getAxioms(AxiomType.EQUIVALENT_CLASSES),
-				negativeProblem.getAxioms(AxiomType.SUBCLASS_OF),
-				negativeProblem.getAxioms(AxiomType.EQUIVALENT_CLASSES), owlThingAlias, resetShortFormCache);
-	}
+			OWLOntology constraintOntology, Set<OWLClass> userVariables, boolean resetShortFormCache) {
 
-	/**
-	 * Initializes the unification goal with the given ontologies and axioms.
-	 * 
-	 * @param bgOntologies
-	 *            a set of background ontologies with definitions
-	 * @param subsumptions
-	 *            the goal subsumptions, as OWLSubClassOfAxioms
-	 * @param equations
-	 *            the goal equations, as binary OWLEquivalentClassesAxioms
-	 * @param dissubsumptions
-	 *            the goal dissubsumptions, as OWLSubClassOfAxioms
-	 * @param disequations
-	 *            the goal disequations, as binary OWLEquivalentClassesAxioms
-	 * @param owlThingAlias
-	 *            (optional) an alias for owl:Thing, e.g., 'SNOMED CT Concept'
-	 * @param resetShortFormCache
-	 *            reset short form cache
-	 */
-	public void setupGoal(Set<OWLOntology> bgOntologies, Set<OWLSubClassOfAxiom> subsumptions,
-			Set<OWLEquivalentClassesAxiom> equations, Set<OWLSubClassOfAxiom> dissubsumptions,
-			Set<OWLEquivalentClassesAxiom> disequations, OWLClass owlThingAlias, boolean resetShortFormCache) {
-
-		algorithm = null;
-		unifierList = new ArrayList<>();
-		currentUnifierIndex = -1;
-		allUnifiersFound = false;
 		atomManager = new AtomManagerImpl();
 
 		if (resetShortFormCache) {
 			resetShortFormCache();
 		}
 
-		OWLClass top = (owlThingAlias != null) ? owlThingAlias : OWLManager.getOWLDataFactory().getOWLThing();
-		goal = new UelOntologyGoal(atomManager, new UelOntology(atomManager, bgOntologies, top));
+		OWLClass owlThing = getOWLThing(options.owlThingAlias, options.snomedMode);
+		goal = new UelOntologyGoal(atomManager,
+				new UelOntology(atomManager, bgOntologies, owlThing, options.expandPrimitiveDefinitions),
+				getStringRenderer(null), options.snomedRoleGroupUri, options.snomedCtConceptUri);
 
-		goal.addPositiveAxioms(subsumptions);
-		goal.addPositiveAxioms(equations);
-		goal.addNegativeAxioms(dissubsumptions);
-		goal.addNegativeAxioms(disequations);
+		if (positiveProblem != null) {
+			goal.addPositiveAxioms(positiveProblem.getAxioms());
+		}
+		if (negativeProblem != null) {
+			goal.addNegativeAxioms(negativeProblem.getAxioms());
+		}
 
-		// define top as the empty conjunction
-		OWLDataFactory factory = OWLManager.getOWLDataFactory();
-		goal.addEquation(factory.getOWLEquivalentClassesAxiom(top, factory.getOWLObjectIntersectionOf()));
-		Integer topId = atomManager.createConceptName(top.toStringID());
-		atomManager.makeDefinitionVariable(topId);
+		// define 'owlThing' as the empty conjunction
+		goal.addDefinition(owlThing, OWLManager.getOWLDataFactory().getOWLObjectIntersectionOf());
+
+		// extract types from background ontologies
+		if (options.snomedMode) {
+			// System.out.println(printGoal());
+			goal.extractSiblings(options.numberOfSiblings);
+			goal.extractTypes();
+			goal.introduceBlankExistentialRestrictions();
+			goal.extractCompatibilityRelation();
+			goal.introduceRoleNumberRestrictions(options.numberOfRoleGroups);
+		}
+
+		goal.setRestrictUndefContext(options.restrictUndefContext);
+
+		if (constraintOntology != null) {
+			goal.addNegativeAxioms(constraintOntology.getAxioms());
+		}
+
+		if (userVariables != null) {
+			makeClassesVariables(userVariables.stream(), false, true);
+		}
+
+		if (options.undefBehavior == UndefBehavior.USER_VARIABLES) {
+			makeAllUndefClassesVariables(true);
+		}
+
+		if (options.undefBehavior == UndefBehavior.INTERNAL_VARIABLES) {
+			makeAllUndefClassesVariables(false);
+		}
+
+		if (options.verbosity.level > 1) {
+			printGoalInfo();
+		}
 
 		goal.disposeOntology();
 		if (resetShortFormCache) {
 			cacheShortForms();
 		}
 	}
-
 }

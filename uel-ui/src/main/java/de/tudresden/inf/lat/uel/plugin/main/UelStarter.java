@@ -3,13 +3,12 @@ package de.tudresden.inf.lat.uel.plugin.main;
 import java.awt.BorderLayout;
 import java.awt.Container;
 
-import javax.swing.border.EmptyBorder;
-
 import org.semanticweb.owlapi.apibinding.OWLManager;
 
 import de.tudresden.inf.lat.uel.core.processor.BasicOntologyProvider;
 import de.tudresden.inf.lat.uel.core.processor.OntologyProvider;
 import de.tudresden.inf.lat.uel.core.processor.UelModel;
+import de.tudresden.inf.lat.uel.core.processor.UelOptions;
 import de.tudresden.inf.lat.uel.plugin.ui.UelController;
 
 /**
@@ -53,7 +52,7 @@ public class UelStarter {
 			throw new IllegalArgumentException("Null argument.");
 		}
 
-		uelController = new UelController(new UelModel(provider));
+		uelController = new UelController(new UelModel(provider, new UelOptions()));
 		parent.add(uelController.getView(), BorderLayout.CENTER);
 		reset();
 	}

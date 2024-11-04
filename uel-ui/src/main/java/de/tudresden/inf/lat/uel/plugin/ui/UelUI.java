@@ -19,6 +19,7 @@ import javax.swing.DefaultListSelectionModel;
 import javax.swing.Icon;
 import javax.swing.ImageIcon;
 import javax.swing.JButton;
+import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
 import javax.swing.JComponent;
 import javax.swing.JFileChooser;
@@ -31,6 +32,7 @@ import javax.swing.border.Border;
 import javax.swing.border.CompoundBorder;
 import javax.swing.border.EmptyBorder;
 import javax.swing.border.LineBorder;
+import javax.swing.text.DefaultCaret;
 
 import org.semanticweb.owlapi.model.OWLOntology;
 import org.semanticweb.owlapi.model.OWLOntologyID;
@@ -200,6 +202,7 @@ class UelUI {
 		textArea.setLineWrap(true);
 		textArea.setEditable(false);
 		textArea.setToolTipText(toolTipText);
+		((DefaultCaret) textArea.getCaret()).setUpdatePolicy(DefaultCaret.NEVER_UPDATE);
 		setMargin(textArea);
 		return createScrollPane(textArea, true);
 	}
@@ -253,6 +256,12 @@ class UelUI {
 		button.setToolTipText(toolTipText);
 		setBorder(button, true);
 		return button;
+	}
+
+	static JCheckBox setupCheckBox(JCheckBox checkBox, boolean selected, String text) {
+		checkBox.setSelected(selected);
+		checkBox.setText(text);
+		return checkBox;
 	}
 
 	static <E> JComboBox<E> setupComboBox(JComboBox<E> comboBox, String toolTipText) {

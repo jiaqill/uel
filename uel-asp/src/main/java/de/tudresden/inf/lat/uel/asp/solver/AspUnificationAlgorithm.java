@@ -1,36 +1,32 @@
 package de.tudresden.inf.lat.uel.asp.solver;
 
 import java.io.IOException;
-import java.util.AbstractMap.SimpleEntry;
 import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 
 import de.tudresden.inf.lat.uel.type.api.Definition;
 import de.tudresden.inf.lat.uel.type.api.Goal;
-import de.tudresden.inf.lat.uel.type.api.UnificationAlgorithm;
+import de.tudresden.inf.lat.uel.type.impl.AbstractUnificationAlgorithm;
+import de.tudresden.inf.lat.uel.type.impl.DefinitionSet;
 import de.tudresden.inf.lat.uel.type.impl.Unifier;
 
-public class AspUnificationAlgorithm implements UnificationAlgorithm {
+public class AspUnificationAlgorithm extends AbstractUnificationAlgorithm {
 
-	private Goal goal;
 	private AspInput aspInput;
 	private AspOutput aspOutput;
 	private boolean initialized;
 	private Unifier currentUnifier;
-	private boolean isSynchronized;
 	private boolean minimize;
+	private boolean hasNext;
 
 	public AspUnificationAlgorithm(Goal goal, boolean minimize) {
-		this.goal = goal;
-		this.aspInput = new AspInput(goal);
+		super(goal);
 		this.initialized = false;
 		this.currentUnifier = null;
-		this.isSynchronized = false;
 		this.minimize = minimize;
+		this.hasNext = false;
 	}
 
 	@Override
@@ -44,33 +40,29 @@ public class AspUnificationAlgorithm implements UnificationAlgorithm {
 
 	@Override
 	public boolean computeNextUnifier() throws InterruptedException {
-		// TODO: implement asynchronous execution of ClingoSolver
-		if (!initialized) {
-			AspSolver solver = new ClingoSolver(goal.hasNegativePart(), false, minimize);
-			try {
+		try {
+			if (!initialized) {
+				aspInput = new AspInput(goal, this);
+				AspSolver solver = new ClingoSolver(goal.hasNegativePart(), !goal.getTypes().isEmpty(), minimize, this);
 				aspOutput = solver.solve(aspInput);
-			} catch (IOException e) {
+				callbackPreprocessing();
+				initialized = true;
+			}
+
+			hasNext = aspOutput.hasNext();
+			if (hasNext) {
+				currentUnifier = toUnifier(aspOutput.next());
+			}
+			return hasNext;
+		} catch (IOException e) {
+			if (!e.getMessage().contains("Stream closed")) {
+				// ignore 'Stream closed', because it was caused by 'cleanup'
+				// being called from another thread
+				cleanup();
 				throw new RuntimeException(e);
 			}
-			initialized = true;
 		}
-
-		isSynchronized = false;
-		boolean hasNext = aspOutput.hasNext();
-		if (Thread.interrupted()) {
-			throw new InterruptedException();
-		}
-		return hasNext;
-	}
-
-	@Override
-	public List<Entry<String, String>> getInfo() {
-		return Collections.singletonList(new SimpleEntry<String, String>("ASP encoding", aspInput.getProgram()));
-	}
-
-	@Override
-	public Goal getGoal() {
-		return this.goal;
+		return false;
 	}
 
 	@Override
@@ -78,26 +70,32 @@ public class AspUnificationAlgorithm implements UnificationAlgorithm {
 		if (aspOutput == null) {
 			throw new IllegalStateException("The unifiers have not been computed yet.");
 		}
-		if (!aspOutput.hasNext()) {
+		if (!hasNext) {
 			throw new IllegalStateException("There are no more unifiers.");
 		}
-
-		if (!isSynchronized) {
-			currentUnifier = toUnifier(aspOutput.next());
-			isSynchronized = true;
+		if (currentUnifier == null) {
+			throw new IllegalStateException("Failed to compute unifier.");
 		}
+
 		return currentUnifier;
 	}
 
 	private Unifier toUnifier(Map<Integer, Set<Integer>> assignment) {
-		Set<Definition> definitions = new HashSet<>();
+		DefinitionSet definitions = new DefinitionSet(goal.getAtomManager().getVariables().size());
 		for (Integer varId : goal.getAtomManager().getVariables()) {
 			Set<Integer> body = assignment.get(varId);
 			if (body == null) {
 				body = Collections.emptySet();
 			}
-			definitions.add(new Definition(varId, body, false));
+			definitions.add(new Definition(varId, Collections.unmodifiableSet(body), false));
 		}
 		return new Unifier(definitions);
+	}
+
+	@Override
+	protected void updateInfo() {
+		for (Entry<String, String> e : aspOutput.getInfo()) {
+			addInfo(e.getKey(), e.getValue());
+		}
 	}
 }

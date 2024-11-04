@@ -13,7 +13,6 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map.Entry;
 import java.util.Set;
 
 import org.semanticweb.owlapi.apibinding.OWLManager;
@@ -24,193 +23,30 @@ import org.semanticweb.owlapi.model.OWLEquivalentClassesAxiom;
 import org.semanticweb.owlapi.model.OWLOntology;
 import org.semanticweb.owlapi.model.OWLOntologyCreationException;
 import org.semanticweb.owlapi.model.OWLOntologyManager;
-import org.semanticweb.owlapi.model.OWLSubClassOfAxiom;
 
 import de.tudresden.inf.lat.uel.core.processor.BasicOntologyProvider;
 import de.tudresden.inf.lat.uel.core.processor.UelModel;
+import de.tudresden.inf.lat.uel.core.processor.UelOptions;
+import de.tudresden.inf.lat.uel.core.processor.UelOptions.Verbosity;
 import de.tudresden.inf.lat.uel.core.processor.UnificationAlgorithmFactory;
-import de.tudresden.inf.lat.uel.type.api.AtomManager;
-import de.tudresden.inf.lat.uel.type.api.Goal;
-import de.tudresden.inf.lat.uel.type.api.UnificationAlgorithm;
 
+/**
+ * This class provides an acces point to UEL without the user interface.
+ * 
+ * @author Stefan Borgwardt
+ */
 public class AlternativeUelStarter {
 
-	private Set<OWLOntology> ontologies;
-	private OWLOntologyManager ontologyManager;
-	private UnificationAlgorithm uelProcessor;
-	private boolean verbose = false;
-	private OWLClass owlThingAlias = null;
-	private boolean markUndefAsVariables = true;
-
-	public AlternativeUelStarter(OWLOntology ontology) {
-		if (ontology == null) {
-			throw new IllegalArgumentException("Null argument.");
-		}
-		this.ontologyManager = ontology.getOWLOntologyManager();
-		this.ontologies = new HashSet<>();
-		this.ontologies.add(ontology);
-	}
-
-	public AlternativeUelStarter(OWLOntologyManager ontologyManager, Set<OWLOntology> ontologies) {
-		if (ontologies == null) {
-			throw new IllegalArgumentException("Null argument.");
-		}
-		this.ontologyManager = ontologyManager;
-		this.ontologies = ontologies;
-	}
-
-	public void setVerbose(boolean verbose) {
-		this.verbose = verbose;
-	}
-
-	public void setOwlThingAlias(OWLClass owlThingAlias) {
-		this.owlThingAlias = owlThingAlias;
-	}
-
-	public void markUndefAsVariables(boolean markUndefAsVariables) {
-		this.markUndefAsVariables = markUndefAsVariables;
-	}
-
-	public static void main(String[] args) {
-		int argIdx = 0;
-		String mainFilename = "";
-		String posFilename = "";
-		String negFilename = "";
-		String varFilename = "";
-		String owlThingAliasName = "";
-		boolean printInfo = false;
-		int algorithmIdx = 0;
-		while (argIdx < args.length) {
-			if ((args[argIdx].length() == 2) && (args[argIdx].charAt(0) == '-')) {
-				switch (args[argIdx].charAt(1)) {
-				case 'p':
-					argIdx++;
-					posFilename = args[argIdx];
-					break;
-				case 'n':
-					argIdx++;
-					negFilename = args[argIdx];
-					break;
-				case 'v':
-					argIdx++;
-					varFilename = args[argIdx];
-					break;
-				case 't':
-					argIdx++;
-					owlThingAliasName = args[argIdx];
-					break;
-				case 'a':
-					argIdx++;
-					try {
-						algorithmIdx = Integer.parseInt(args[argIdx]) - 1;
-					} catch (NumberFormatException e) {
-						System.err.println("Invalid algorithm index.");
-						return;
-					}
-					break;
-				case 'h':
-					printSyntax();
-					return;
-				case 'i':
-					printInfo = true;
-					break;
-				default:
-					mainFilename = args[argIdx];
-					break;
-				}
-			} else {
-				mainFilename = args[argIdx];
-			}
-			argIdx++;
-		}
-
-		OWLOntologyManager manager = OWLManager.createOWLOntologyManager();
-		AlternativeUelStarter starter = new AlternativeUelStarter(loadOntology(mainFilename, manager));
-		starter.setVerbose(printInfo);
-		if (!owlThingAliasName.isEmpty()) {
-			starter.setOwlThingAlias(OWLManager.getOWLDataFactory().getOWLClass(IRI.create(owlThingAliasName)));
-		}
-
-		OWLOntology posOntology = loadOntology(posFilename, manager);
-		if (posOntology == null) {
-			return;
-		}
-		OWLOntology negOntology = loadOntology(negFilename, manager);
-		if (negOntology == null) {
-			return;
-		}
-		Set<OWLClass> variables = loadVariables(varFilename);
-		if (variables == null) {
-			return;
-		}
-		List<String> algorithmNames = UnificationAlgorithmFactory.getAlgorithmNames();
-		if ((algorithmIdx < 0) || (algorithmIdx >= algorithmNames.size())) {
-			System.err.println("Invalid algorithm index.");
-			return;
-		}
-		String algorithmName = algorithmNames.get(algorithmIdx);
-
-		Iterator<Set<OWLEquivalentClassesAxiom>> result = starter.modifyOntologyAndSolve(posOntology, negOntology,
-				variables, algorithmName);
-		int unifierIdx = 1;
-		while (result.hasNext()) {
-			System.out.println("Unifier " + unifierIdx + ":");
-			Set<OWLEquivalentClassesAxiom> unifier = result.next();
-			for (OWLEquivalentClassesAxiom def : unifier) {
-				System.out.println(def.toString());
-			}
-			System.out.println();
-			unifierIdx++;
-		}
-		if (unifierIdx == 1) {
-			System.out.println("Not unifiable.");
-		}
-
-		if (printInfo) {
-			System.out.println("Stats:");
-			for (Entry<String, String> entry : starter.getStats()) {
-				System.out.println(entry.getKey() + ":");
-				System.out.println(entry.getValue());
-			}
-		}
-	}
-
-	private static void printSyntax() {
-		try {
-			BufferedReader reader = new BufferedReader(
-					new InputStreamReader(AlternativeUelStarter.class.getResourceAsStream("/help")));
-			reader.lines().forEach(line -> System.out.println(line));
-			System.out.flush();
-			reader.close();
-		} catch (IOException ex) {
-			ex.printStackTrace();
-		}
-	}
-
-	static Set<OWLClass> loadVariables(String filename) {
-		try {
-			if (filename.isEmpty()) {
-				return Collections.emptySet();
-			}
-
-			OWLDataFactory factory = OWLManager.getOWLDataFactory();
-			Set<OWLClass> variables = new HashSet<>();
-
-			for (String line : Files.readAllLines(Paths.get(filename))) {
-				if (!line.isEmpty()) {
-					variables.add(factory.getOWLClass(IRI.create(line)));
-				}
-			}
-
-			return variables;
-		} catch (IOException e) {
-			System.err.println("Error while reading file '" + filename + "'.");
-			System.err.println(e.getMessage());
-			return null;
-		}
-	}
-
-	private static OWLOntology loadOntology(String filename, OWLOntologyManager manager) {
+	/**
+	 * Convenience method for loading an OWL ontology from a file.
+	 * 
+	 * @param filename
+	 *            the path to the ontology file
+	 * @param manager
+	 *            a pre-existing OWL ontology manager
+	 * @return the created OWL ontology, or 'null' if the loading failed
+	 */
+	public static OWLOntology loadOntology(String filename, OWLOntologyManager manager) {
 		try {
 			if (filename.isEmpty()) {
 				return manager.createOntology();
@@ -228,56 +64,222 @@ public class AlternativeUelStarter {
 		}
 	}
 
-	public Iterator<Set<OWLEquivalentClassesAxiom>> modifyOntologyAndSolve(OWLOntology positiveProblem,
-			OWLOntology negativeProblem, Set<OWLClass> variables, String algorithmName) {
+	/**
+	 * Convenience method for loading a list of OWL class IRIs from a text file.
+	 * 
+	 * @param filename
+	 *            the path to the file
+	 * @return the set of OWL classes, or 'null' if the loading failed
+	 */
+	static Set<OWLClass> loadVariables(String filename) {
+		try {
+			if (filename.isEmpty()) {
+				return Collections.emptySet();
+			}
 
-		UelModel uelModel = new UelModel(new BasicOntologyProvider(ontologyManager));
-		uelModel.setupGoal(ontologies, positiveProblem, negativeProblem, owlThingAlias, true);
+			OWLDataFactory factory = OWLManager.getOWLDataFactory();
+			Set<OWLClass> variables = new HashSet<OWLClass>();
 
-		return modifyOntologyAndSolve(uelModel, variables, algorithmName);
+			for (String line : Files.readAllLines(Paths.get(filename))) {
+				if (!line.isEmpty()) {
+					variables.add(factory.getOWLClass(IRI.create(line)));
+				}
+			}
+
+			return variables;
+		} catch (IOException e) {
+			System.err.println("Error while reading file '" + filename + "'.");
+			System.err.println(e.getMessage());
+			return null;
+		}
 	}
 
-	public Iterator<Set<OWLEquivalentClassesAxiom>> modifyOntologyAndSolve(Set<OWLSubClassOfAxiom> subsumptions,
-			Set<OWLEquivalentClassesAxiom> equations, Set<OWLSubClassOfAxiom> dissubsumptions,
-			Set<OWLEquivalentClassesAxiom> disequations, Set<OWLClass> variables, String algorithmName) {
+	/**
+	 * Command line interface for UEL. For more information, see the '-h'
+	 * option.
+	 * 
+	 * @param args
+	 *            the command line arguments
+	 */
+	public static void main(String[] args) {
+		int argIdx = 0;
+		String mainFilename = "";
+		String posFilename = "";
+		String negFilename = "";
+		String varFilename = "";
+		UelOptions options = new UelOptions();
 
-		UelModel uelModel = new UelModel(new BasicOntologyProvider(ontologyManager));
-		uelModel.setupGoal(ontologies, subsumptions, equations, dissubsumptions, disequations, owlThingAlias, true);
+		while (argIdx < args.length) {
+			if ((args[argIdx].length() == 2) && (args[argIdx].charAt(0) == '-')) {
+				switch (args[argIdx].charAt(1)) {
+				case 'p':
+					argIdx++;
+					posFilename = args[argIdx];
+					break;
+				case 'n':
+					argIdx++;
+					negFilename = args[argIdx];
+					break;
+				case 'v':
+					argIdx++;
+					varFilename = args[argIdx];
+					break;
+				case 't':
+					argIdx++;
+					if (!args[argIdx].isEmpty()) {
+						options.owlThingAlias = OWLManager.getOWLDataFactory().getOWLClass(IRI.create(args[argIdx]));
+					}
+					break;
+				case 'a':
+					argIdx++;
+					try {
+						int algorithmIdx = Integer.parseInt(args[argIdx]) - 1;
+						List<String> algorithmNames = UnificationAlgorithmFactory.getAlgorithmNames();
+						if ((algorithmIdx < 0) || (algorithmIdx >= algorithmNames.size())) {
+							System.err.println("Invalid algorithm index.");
+							return;
+						}
+						options.unificationAlgorithmName = algorithmNames.get(algorithmIdx);
+					} catch (NumberFormatException e) {
+						System.err.println("Invalid algorithm index.");
+						return;
+					}
+					break;
+				case 'h':
+					printSyntax();
+					return;
+				case 'i':
+					options.verbosity = Verbosity.NORMAL;
+					break;
+				case 's':
+					options.snomedMode = true;
+					break;
+				default:
+					mainFilename = args[argIdx];
+					break;
+				}
+			} else {
+				mainFilename = args[argIdx];
+			}
+			argIdx++;
+		}
 
-		return modifyOntologyAndSolve(uelModel, variables, algorithmName);
+		OWLOntologyManager manager = OWLManager.createOWLOntologyManager();
+		OWLOntology bgOntology = loadOntology(mainFilename, manager);
+		if (bgOntology == null) {
+			return;
+		}
+		OWLOntology posOntology = loadOntology(posFilename, manager);
+		if (posOntology == null) {
+			return;
+		}
+		OWLOntology negOntology = loadOntology(negFilename, manager);
+		if (negOntology == null) {
+			return;
+		}
+		Set<OWLClass> variables = loadVariables(varFilename);
+		if (variables == null) {
+			return;
+		}
+
+		Iterator<Set<OWLEquivalentClassesAxiom>> result = AlternativeUelStarter.solve(bgOntology, posOntology,
+				negOntology, null, variables, options);
+		int unifierIdx = 1;
+		while (result.hasNext()) {
+			System.out.println("Unifier " + unifierIdx + ":");
+			Set<OWLEquivalentClassesAxiom> unifier = result.next();
+			for (OWLEquivalentClassesAxiom def : unifier) {
+				System.out.println(def.toString());
+			}
+			System.out.println();
+			unifierIdx++;
+		}
+		if (unifierIdx == 1) {
+			System.out.println("Not unifiable.");
+		}
+
 	}
 
-	private Iterator<Set<OWLEquivalentClassesAxiom>> modifyOntologyAndSolve(UelModel uelModel, Set<OWLClass> variables,
-			String algorithmName) {
+	private static void printSyntax() {
+		try {
+			BufferedReader reader = new BufferedReader(
+					new InputStreamReader(AlternativeUelStarter.class.getResourceAsStream("/help")));
+			reader.lines().forEach(line -> System.out.println(line));
+			System.out.flush();
+			reader.close();
+		} catch (IOException ex) {
+			ex.printStackTrace();
+		}
+	}
 
-		uelModel.makeClassesUserVariables(variables);
+	/**
+	 * Start the unification process.
+	 * 
+	 * @param bgOntology
+	 *            the background ontology
+	 * @param positiveProblem
+	 *            the positive part of the unification problem
+	 * @param negativeProblem
+	 *            the negative part of the unification problem
+	 * @param constraints
+	 *            additional constraints to be loaded after all processing
+	 *            finished (only relevant in SNOMED mode)
+	 * @param variables
+	 *            the set of user variables
+	 * @param options
+	 *            describes the execution options of UEL
+	 * @return an iterator yielding all produced unifiers (as sets of
+	 *         OWLEquivalentClassesAxioms describing the definitions of the user
+	 *         variables)
+	 */
+	public static Iterator<Set<OWLEquivalentClassesAxiom>> solve(OWLOntology bgOntology, OWLOntology positiveProblem,
+			OWLOntology negativeProblem, OWLOntology constraints, Set<OWLClass> variables, UelOptions options) {
+		return solve(Collections.singleton(bgOntology), positiveProblem, negativeProblem, constraints, variables,
+				options);
+	}
 
-		if (markUndefAsVariables) {
-			uelModel.makeAllUndefClassesUserVariables();
+	/**
+	 * Start the unification process.
+	 * 
+	 * @param bgOntologies
+	 *            the background ontologies
+	 * @param positiveProblem
+	 *            the positive part of the unification problem
+	 * @param negativeProblem
+	 *            the negative part of the unification problem
+	 * @param constraints
+	 *            additional constraints to be loaded after all processing
+	 *            finished (only relevant in SNOMED mode)
+	 * @param variables
+	 *            the set of user variables
+	 * @param options
+	 *            describes the execution options of UEL
+	 * @return an iterator yielding all produced unifiers (as sets of
+	 *         OWLEquivalentClassesAxioms describing the definitions of the user
+	 *         variables)
+	 */
+	public static Iterator<Set<OWLEquivalentClassesAxiom>> solve(Set<OWLOntology> bgOntologies,
+			OWLOntology positiveProblem, OWLOntology negativeProblem, OWLOntology constraints, Set<OWLClass> variables,
+			UelOptions options) {
+
+		OWLOntologyManager manager;
+		if (bgOntologies.size() > 0) {
+			manager = bgOntologies.iterator().next().getOWLOntologyManager();
+		} else if (positiveProblem != null) {
+			manager = positiveProblem.getOWLOntologyManager();
+		} else if (negativeProblem != null) {
+			manager = negativeProblem.getOWLOntologyManager();
+		} else if (constraints != null) {
+			manager = constraints.getOWLOntologyManager();
+		} else {
+			manager = OWLManager.createOWLOntologyManager();
 		}
 
-		if (verbose) {
-			// output unification problem
-			Goal goal = uelModel.getGoal();
-			AtomManager atomManager = goal.getAtomManager();
-			System.out.println("Final number of atoms: " + atomManager.size());
-			System.out.println("Final number of constants: " + atomManager.getConstants().size());
-			System.out.println("Final number of variables: " + atomManager.getVariables().size());
-			System.out.println("Final number of user variables: " + atomManager.getUserVariables().size());
-			System.out.println("Final number of equations: " + goal.getEquations().size());
-			System.out.println("Final number of disequations: " + goal.getDisequations().size());
-			System.out.println("Final number of subsumptions: " + goal.getSubsumptions().size());
-			System.out.println("Final number of dissubsumptions: " + goal.getDissubsumptions().size());
-			System.out.println("(Dis-)Unification problem:");
-			System.out.println(uelModel.printGoal());
-		}
+		UelModel uelModel = new UelModel(new BasicOntologyProvider(manager), options);
+		uelModel.setupGoal(bgOntologies, positiveProblem, negativeProblem, constraints, variables, true);
 
-		uelModel.initializeUnificationAlgorithm(algorithmName);
+		uelModel.initializeUnificationAlgorithm();
 		return new UnifierIterator(uelModel);
-	}
-
-	public List<Entry<String, String>> getStats() {
-		return uelProcessor.getInfo();
 	}
 
 }

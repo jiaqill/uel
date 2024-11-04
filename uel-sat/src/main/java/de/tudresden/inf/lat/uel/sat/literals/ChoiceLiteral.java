@@ -4,15 +4,23 @@
 package de.tudresden.inf.lat.uel.sat.literals;
 
 /**
+ * This class represents literals used for choices in a SAT encoding. Different
+ * choice literals are distinguished simply by an integer id.
+ * 
  * @author Stefan Borgwardt
- *
  */
 public class ChoiceLiteral implements Literal {
 
+	private static int choiceLiteralCount = 0;
+
 	private final int index;
 
-	public ChoiceLiteral(int index) {
-		this.index = index;
+	/**
+	 * Create a new choice literal with a fresh id.
+	 */
+	public ChoiceLiteral() {
+		this.index = choiceLiteralCount;
+		choiceLiteralCount++;
 	}
 
 	@Override

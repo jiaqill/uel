@@ -1,8 +1,8 @@
 package de.tudresden.inf.lat.uel.sat.solver;
 
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Set;
-import java.util.TreeSet;
 
 import org.sat4j.core.VecInt;
 import org.sat4j.minisat.SolverFactory;
@@ -13,16 +13,17 @@ import org.sat4j.specs.TimeoutException;
 
 import de.tudresden.inf.lat.uel.sat.type.SatInput;
 import de.tudresden.inf.lat.uel.sat.type.SatOutput;
-import de.tudresden.inf.lat.uel.sat.type.Solver;
+import de.tudresden.inf.lat.uel.sat.type.SatSolver;
 
 /**
  * An object of this class uses the Sat4j solver to solve a SAT problem.
  * 
  * @author Julian Mendez
  */
-public class Sat4jSolver implements Solver {
+public class Sat4jSolver implements SatSolver {
 
 	private ISolver solver;
+	private boolean cleanedUp = false;
 
 	/**
 	 * Constructs a new solver.
@@ -31,14 +32,16 @@ public class Sat4jSolver implements Solver {
 	}
 
 	public void cleanup() {
-		if (solver != null) {
+		if ((solver != null) && !cleanedUp) {
 			solver.reset();
+			// we only need to reset the solver once
+			cleanedUp = true;
 		}
 	}
 
 	private SatOutput getSatOutput() {
 		IProblem problem = solver;
-		Set<Integer> model = new TreeSet<>();
+		Set<Integer> model = new HashSet<Integer>();
 		boolean satisfiable;
 		try {
 			satisfiable = problem.isSatisfiable();
@@ -49,6 +52,8 @@ public class Sat4jSolver implements Solver {
 			for (Integer e : problem.model()) {
 				model.add(e);
 			}
+		} else {
+			// TODO: unsat proof?
 		}
 
 		return new SatOutput(satisfiable, model);

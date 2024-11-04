@@ -1,8 +1,8 @@
 package de.tudresden.inf.lat.uel.sat.solver;
 
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Set;
-import java.util.TreeSet;
 
 import org.sat4j.core.VecInt;
 import org.sat4j.maxsat.SolverFactory;
@@ -14,7 +14,7 @@ import org.sat4j.specs.TimeoutException;
 
 import de.tudresden.inf.lat.uel.sat.type.SatInput;
 import de.tudresden.inf.lat.uel.sat.type.SatOutput;
-import de.tudresden.inf.lat.uel.sat.type.Solver;
+import de.tudresden.inf.lat.uel.sat.type.SatSolver;
 
 /**
  * An object of this class uses the Sat4j MaxSAT solver to solve a SAT problem
@@ -23,10 +23,11 @@ import de.tudresden.inf.lat.uel.sat.type.Solver;
  * 
  * @author Stefan Borgwardt
  */
-public class Sat4jMaxSatSolver implements Solver {
+public class Sat4jMaxSatSolver implements SatSolver {
 
 	private Integer nbVars;
 	private WeightedMaxSatDecorator solver;
+	private boolean cleanedUp = false;
 
 	/**
 	 * Constructs a new solver.
@@ -34,31 +35,35 @@ public class Sat4jMaxSatSolver implements Solver {
 	public Sat4jMaxSatSolver() {
 	}
 
+	@Override
 	public void cleanup() {
-		if (solver != null) {
+		if ((solver != null) && !cleanedUp) {
 			solver.reset();
+			// we only need to reset the solver once
+			cleanedUp = true;
 		}
 	}
 
-	private SatOutput getSatOutput() {
+	private SatOutput getSatOutput() throws InterruptedException {
 		IOptimizationProblem problem = new PseudoOptDecorator(solver, false);
-		Set<Integer> model = new TreeSet<>();
+		Set<Integer> model = new HashSet<Integer>();
 		boolean satisfiable = false;
-		// int counter = 0;
 		try {
 			while (problem.admitABetterSolution()) {
 				satisfiable = true;
 				// counter++;
 				problem.discardCurrentSolution();
+
+				if (Thread.interrupted()) {
+					throw new InterruptedException();
+				}
 			}
 		} catch (TimeoutException e) {
 			throw new RuntimeException(e);
 		} catch (ContradictionException e) {
 			// this means that the current model is optimal
 		}
-		// if (counter > 2) {
-		// System.out.println(counter);
-		// }
+
 		if (satisfiable) {
 			for (int i = 1; i <= nbVars; i++) {
 				if (problem.model(i)) {
@@ -71,7 +76,7 @@ public class Sat4jMaxSatSolver implements Solver {
 	}
 
 	@Override
-	public SatOutput solve(SatInput input) {
+	public SatOutput solve(SatInput input) throws InterruptedException {
 		if (input == null) {
 			throw new IllegalArgumentException("Null argument.");
 		}
@@ -86,13 +91,29 @@ public class Sat4jMaxSatSolver implements Solver {
 			try {
 				solver.addHardClause(new VecInt(SatInput.toArray(clause)));
 			} catch (ContradictionException e) {
-				return new SatOutput(false, Collections.<Integer> emptySet());
+				return new SatOutput(false, Collections.emptySet());
+			}
+
+			if (Thread.interrupted()) {
+				throw new InterruptedException();
 			}
 		}
+		for (Set<Integer> clause : input.getSoftClauses()) {
+			try {
+				solver.addSoftClause(new VecInt(SatInput.toArray(clause)));
+			} catch (ContradictionException e) {
+				return new SatOutput(false, Collections.emptySet());
+			}
+
+			if (Thread.interrupted()) {
+				throw new InterruptedException();
+			}
+		}
+
 		return getSatOutput();
 	}
 
-	public SatOutput update(Set<Integer> clause) {
+	public SatOutput update(Set<Integer> clause) throws InterruptedException {
 		try {
 			solver.addHardClause(new VecInt(SatInput.toArray(clause)));
 		} catch (ContradictionException e) {

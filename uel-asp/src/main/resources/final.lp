@@ -1,11 +1,12 @@
 
-relsubs(var(X),C) :- subs(var(X),C), relevant(X), nonvaratom(C).
+relsubs(var(X),C) :- subs(var(X),C), nonvaratom(C).
 
 %#minimize{ relsubs(X,Y) }.
 
 %#hide.
 %#show subs/2.
 #show relsubs/2.
+%#show compatible/3.
 %#show nonvaratom/1.
 %#show dissubs/2.
 %#show eqhasatom/3.
