@@ -39,7 +39,7 @@ public final class EagerLeftDecomposition extends EagerRule{
             FlatConstraint newDissub = new FlatConstraint(Collections.<Atom> singletonList(at), ((Application) application).head, true);
             res.getNewUnsolvedConstraints().add(newDissub);
         }
-        System.out.println("Eld has been applied" + dissub);
+        //System.out.println("Eld has been applied" + dissub);
         return res;
     }
 

@@ -31,14 +31,14 @@ public class EagerAtomicDecomposition1 extends EagerRule{
                 if (!(application instanceof Application)) {
                     throw new IllegalArgumentException("Expected rule application of type EagerAtomicDecomposition1Rule.Application.");
                 }
-                System.out.println("EAD has been applied" + dissub);
+                //System.out.println("EAD has been applied" + dissub);
                 return new Result(dissub, application, false);
             }
             else if (!body.equals(head)){
                 if (!(application instanceof Application)) {
                     throw new IllegalArgumentException("Expected rule application of type EagerAtomicDecomposition1Rule.Application.");
                 }
-                System.out.println("EAD has been applied" + dissub);
+                //System.out.println("EAD has been applied" + dissub);
                 return new Result(dissub, application);
             }
         }
@@ -46,7 +46,7 @@ public class EagerAtomicDecomposition1 extends EagerRule{
             if (!(application instanceof Application)) {
                 throw new IllegalArgumentException("Expected rule application of type EagerAtomicDecomposition1Rule.Application.");
             }
-            System.out.println("EAD has been applied" + dissub);
+            //System.out.println("EAD has been applied" + dissub);
             return new Result(dissub, application);
         }
         else if (body.isExistentialRestriction() && head.isExistentialRestriction()){
@@ -54,7 +54,7 @@ public class EagerAtomicDecomposition1 extends EagerRule{
                 if (!(application instanceof Application)) {
                     throw new IllegalArgumentException("Expected rule application of type EagerAtomicDecomposition1Rule.Application.");
                 }
-                System.out.println("EAD has been applied" + dissub);
+                //System.out.println("EAD has been applied" + dissub);
                 return new Result(dissub, application);
             }
 

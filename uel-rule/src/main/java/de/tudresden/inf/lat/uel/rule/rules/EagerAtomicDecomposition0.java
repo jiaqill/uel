@@ -29,7 +29,7 @@ public class EagerAtomicDecomposition0 extends EagerRule{
         Atom head = dissub.getDissubsumptionHead().get(0);
         Atom body = dissub.getBody().get(0);
         if (body.equals(head)){
-            System.out.println("EAD0 has been applied" + dissub);
+            //System.out.println("EAD0 has been applied" + dissub);
             return new Result(dissub, application, false);
         }
         return null;

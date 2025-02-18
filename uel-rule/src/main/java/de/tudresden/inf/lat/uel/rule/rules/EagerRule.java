@@ -10,7 +10,7 @@ import de.tudresden.inf.lat.uel.rule.FlatConstraint;
  * 
  * @author Stefan Borgwardt
  */
-public abstract class EagerRule extends Rule {
+public abstract class EagerRule extends Rule<FlatConstraint> {
 
 	@Override
 	public final Rule.Application getNextApplication(FlatConstraint con, Assignment assign,

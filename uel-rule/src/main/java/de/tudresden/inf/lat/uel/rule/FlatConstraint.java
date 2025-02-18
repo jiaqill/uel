@@ -1,8 +1,6 @@
 package de.tudresden.inf.lat.uel.rule;
 
-import java.util.Arrays;
-import java.util.Iterator;
-import java.util.List;
+import java.util.*;
 
 import de.tudresden.inf.lat.uel.type.api.Atom;
 
@@ -216,6 +214,8 @@ public class FlatConstraint {
 		return hashCode;
 	}
 
+
+
 	@Override
 	public boolean equals(Object obj) {
 		if (obj == null)
@@ -245,6 +245,10 @@ public class FlatConstraint {
 		}
 		return isDissubsumption == other.isDissubsumption;
 	}
+
+
+
+
 
 	@Override
 	public String toString() {

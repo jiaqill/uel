@@ -10,7 +10,7 @@ import de.tudresden.inf.lat.uel.type.api.AtomManager;
 import de.tudresden.inf.lat.uel.type.impl.ConceptName;
 import de.tudresden.inf.lat.uel.type.impl.ExistentialRestriction;
 
-public class LocalExtension extends Rule{
+public class LocalExtension extends Rule<FlatConstraint>{
     //@Override
     public Application getFirstApplication(FlatConstraint dissub, Assignment assign) {
         if (dissub.isDissubsumption()) {
@@ -57,14 +57,21 @@ public class LocalExtension extends Rule{
         Atom D = ((Application) application).D;
 
         if (assign.makesCyclic(X, D)) {
-                System.out.println("this make cyclic");
+                //System.out.println("this make cyclic");
                 return new Result(dissub, application, false);
             }
+        if (D.isExistentialRestriction()){
+            // domain and range restrictions
+            if (!assign.isCompatibleTypeAboutDomain(X, D) || !assign.isCompatibleTypeAboutRange(D)) {
+                return new Result(dissub, application, false);
+                //return null;
+            }
+        }
         Result res = new Result(dissub, application);
         res.getNewSubsumers().add(X, D);
         FlatConstraint newDissub = new FlatConstraint(dissub.getBody(), D, true);
         res.getNewUnsolvedConstraints().add(newDissub);
-        System.out.println("LE has been applied" + dissub);
+        //System.out.println("LE has been applied" + dissub);
         return res;
     }
 

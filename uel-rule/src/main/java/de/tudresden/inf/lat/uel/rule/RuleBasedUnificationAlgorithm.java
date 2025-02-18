@@ -1,24 +1,17 @@
 package de.tudresden.inf.lat.uel.rule;
 
-import java.util.ArrayDeque;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Deque;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Set;
+import java.rmi.UnexpectedException;
+import java.util.*;
 
+// import com.sun.org.apache.xpath.internal.operations.Variable;
 import de.tudresden.inf.lat.uel.rule.rules.*;
 import de.tudresden.inf.lat.uel.rule.rules.Rule.Application;
-import de.tudresden.inf.lat.uel.type.api.Atom;
-import de.tudresden.inf.lat.uel.type.api.AtomManager;
-import de.tudresden.inf.lat.uel.type.api.Definition;
-import de.tudresden.inf.lat.uel.type.api.Goal;
+import de.tudresden.inf.lat.uel.type.api.*;
 import de.tudresden.inf.lat.uel.type.impl.AbstractUnificationAlgorithm;
 import de.tudresden.inf.lat.uel.type.impl.DefinitionSet;
+import de.tudresden.inf.lat.uel.type.impl.ExistentialRestriction;
 import de.tudresden.inf.lat.uel.type.impl.Unifier;
+//import jdk.internal.org.jline.terminal.TerminalBuilder;
 
 /**
  * This class is used to solve a disunification problem using a rule-based
@@ -69,12 +62,12 @@ public class RuleBasedUnificationAlgorithm extends AbstractUnificationAlgorithm 
 	 */
 	public RuleBasedUnificationAlgorithm(Goal goal) {
 		super(goal);
-		if (!goal.getTypes().isEmpty()) {
-			throw new UnsupportedOperationException("The rule-based algorithm cannot deal with type information!");
-		}
+//		if (!goal.getTypes().isEmpty()) {
+//			throw new UnsupportedOperationException("The rule-based algorithm cannot deal with type information!");
+//		}
 		this.normalizedGoal = null;
-		this.nonVariableAtoms = goal.getAtomManager().getNonvariableAtoms();
-		this.assignment = new Assignment(nonVariableAtoms);
+		//this.nonVariableAtoms = goal.getAtomManager().getNonvariableAtoms();
+		this.assignment = new Assignment(goal);
 		addInfo(keyName, algorithmName);
 		addInfo(keyNumberOfVariables, goal.getAtomManager().getVariables().size());
 		initRules();
@@ -117,6 +110,8 @@ public class RuleBasedUnificationAlgorithm extends AbstractUnificationAlgorithm 
 		nondeterministicRules.add(new ExtensionRule());
 		nondeterministicRules.add(new RightDecomposition());
 		nondeterministicRules.add(new LocalExtension());
+
+		//new TypeChoosing();
 	}
 
 	/**
@@ -128,10 +123,28 @@ public class RuleBasedUnificationAlgorithm extends AbstractUnificationAlgorithm 
 	 *         subsumptions and dissubsumptions
 	 */
 	public boolean computeNextUnifier() throws InterruptedException {
+		/*for (Integer at: goal.getAtomManager().getExistentialRestrictions()) {
+			System.out.println("Rolegroup id is: " + goal.getAtomManager().getRoleId(goal.SNOMED_RoleGroup_URI()));
+			Integer roleId = ((ExistentialRestriction)goal.getAtomManager().getAtom(at)).getRoleId();
+
+			Set<Integer> domain = goal.getDomains().get(roleId);
+			if (roleId.equals(goal.getAtomManager().getRoleId(goal.SNOMED_RoleGroup_URI()))) {
+				domain = new HashSet<>(goal.getRoleGroupTypes().values()) ;
+			}
+			if (domain == null) {
+				continue;
+			}
+			for (Integer id : domain) {
+				System.out.println("Domain of this role " + roleId + "is " + goal.getAtomManager().getAtom(id));
+			}
+		}*/
+		//System.out.println("DEBUG: Entering computeNextUnifier()");
+
 		if (normalizedGoal == null) {
 			normalizedGoal = new NormalizedGoal(goal);
 			addInfo(keyInitialCons, normalizedGoal.size());
 			for (FlatConstraint con : normalizedGoal) {
+				//System.out.println("The constraint is:" + con);
 				if (!con.isDissubsumption()) {
 					if (con.getHead().isVariable()) {
 						// subsumptions with a variable on the right-hand side are
@@ -159,13 +172,20 @@ public class RuleBasedUnificationAlgorithm extends AbstractUnificationAlgorithm 
 			Result res = applyEagerRules(normalizedGoal, staticEagerRules, null);
 			if (!res.wasSuccessful())
 				return false;
-			for (FlatConstraint con : res.getSolvedConstraints()) {
-				con.setSolved(true);
+			for (Object con : res.getSolvedConstraints()) {
+				if (con instanceof FlatConstraint) {
+					((FlatConstraint) con).setSolved(true);
+				}
 			}
-			Assignment tmp = new Assignment(nonVariableAtoms);
+			/*for (FlatConstraint con : res.getSolvedConstraints()) {
+				con.setSolved(true);
+			}*/
+			Assignment tmp = new Assignment(goal);
 			res = applyEagerRules(normalizedGoal, dynamicEagerRules, tmp);
-			if (!res.wasSuccessful())
+			if (!res.wasSuccessful()) {
+				//System.out.println("DEBUG: applyEagerRules() failed, returning false.");
 				return false;
+			}
 			if (!commitResult(res, tmp)) {
 				return false;
 			}
@@ -182,6 +202,7 @@ public class RuleBasedUnificationAlgorithm extends AbstractUnificationAlgorithm 
 				return false;
 			}
 		}
+		System.out.println("Calling solve()...");
 		return solve();
 
 	}
@@ -207,12 +228,91 @@ public class RuleBasedUnificationAlgorithm extends AbstractUnificationAlgorithm 
 			if (Thread.interrupted()) {
 				throw new InterruptedException();
 			}
-
+			//System.out.println("DEBUG: Searching for unsolved constraints...");
 			FlatConstraint con = chooseUnsolvedConstraint();
-			if (con == null)
-				return true;
+			//System.out.println("DEBUG: Found constraint: " + con);
+
+			// Choose an unsolved constraint
+			//FlatConstraint con = chooseUnsolvedConstraint();
+			//System.out.println("Choosed unsolved Constraint: " + con + "!");
+			if (con == null) {
+				//System.out.println("DEBUG: No unsolved constraints found!");
+
+				// 打印 `assignment.types`
+				if (assignment.types.isEmpty()) {
+					System.out.println("DEBUG: assignment.types is EMPTY!");
+				} /*else {
+					System.out.println("DEBUG: assignment.types contains:");
+					for (Atom var : assignment.types.keySet()) {
+						System.out.println(var + " -> " + assignment.types.get(var));
+					}
+				}*/
+				// If all constraints are solved, check types before returning success
+				boolean typeChosen = false;
+				//System.out.println("DEBUG: Checking assignment.types before loop:");
+
+				for (Atom var : assignment.types.keySet()) {
+					if (assignment.types.get(var).size() > 1) {
+						//System.out.println(var + " has " + assignment.types.get(var).size() + " types!");
+						//boolean success = applyTypeChoosingRule(var, null);
+						//typeChosen |= success;  // 只要有一次成功，标记为 true
+						// If there are multiple possible types, apply TypeChoosingRule
+						if (applyTypeChoosingRule(var, null)) {
+								//System.out.println("Type choosing success for: " + var);
+								//System.out.println("Updated assignment.types: " + assignment.types);
+
+							typeChosen = true;
+							break; // Exit the loop after a successful type selection
+						}
+					}
+				}
+				/*boolean typeChosen;
+				do {
+					typeChosen = false;
+					for (Atom var : assignment.types.keySet()) {
+						if (assignment.types.get(var).size() > 1) {
+							if (applyTypeChoosingRule(var, null)) {
+								typeChosen = true;
+							}
+						}
+					}
+				} while (typeChosen); // 直到没有变量可以再被选择*/
+
+				if (!typeChosen) {
+					System.out.println("DEBUG: assignment.types contains:");
+					for (Atom var : assignment.types.keySet()) {
+						System.out.println(var + " -> " + assignment.types.get(var));
+					}
+					//System.out.println("No type chosen, exiting solve()");
+					return true; // Return true when all types are uniquely determined
+				}
+				continue; // Continue with the next iteration of the while loop
+			}
+
+			/*if (con == null) {
+				boolean typeChosen = false;
+				for (Atom var : assignment.types.keySet()) {
+					if (assignment.types.get(var).size() > 1) {
+						typeChosen = true;
+						if (applyTypeChoosingRule(var, null)) {
+                            continue;
+						} else {
+							throw new RuntimeException("The first application of typeChoosing should be successful!");
+						}
+					}
+				}
+				if (!typeChosen) {
+					System.out.println("No type chosen, exiting solve()");
+					return true; // Return true when all types are uniquely determined
+				}
+				continue; // Continue with the next iteration of the while loop
+			}*/
+
 			if (applyNextNondeterministicRule(con, null))
 				continue;
+
+			/*if (applyNextNondeterministicRule(con, null))
+				continue;*/
 			deadEnds++;
 			if (!backtrack())
 				return false;
@@ -223,8 +323,15 @@ public class RuleBasedUnificationAlgorithm extends AbstractUnificationAlgorithm 
 		while (!searchStack.isEmpty()) {
 			Result res = searchStack.pop();
 			rollBackResult(res);
-			if (applyNextNondeterministicRule(res.getConstraint(), res.getApplication())) {
-				return true;
+			if (res.getConstraint() instanceof FlatConstraint) {
+				if (applyNextNondeterministicRule((FlatConstraint) res.getConstraint(), res.getApplication())) {
+					return true;
+				}
+			}
+			if (res.getConstraint() instanceof Atom) {
+				if (applyTypeChoosingRule((Atom) res.getConstraint(), res.getApplication())) {
+					return true;
+				}
 			}
 		}
 		return false;
@@ -232,9 +339,13 @@ public class RuleBasedUnificationAlgorithm extends AbstractUnificationAlgorithm 
 
 	private FlatConstraint chooseUnsolvedConstraint() {
 		for (FlatConstraint con : normalizedGoal) {
-			if (!con.isSolved())
+			if (!con.isSolved()) {
+				//System.out.println("Found unsolved constraint: " + con);
 				return con;
+			}
+
 		}
+		//System.out.println("No unsolved constraints found!");
 		return null;
 	}
 
@@ -244,16 +355,30 @@ public class RuleBasedUnificationAlgorithm extends AbstractUnificationAlgorithm 
 		for (FlatConstraint con : cons) {
 			if (!con.isSolved()) {
 				for (Rule rule : rules) {
+					//System.out.println("DEBUG: Trying rule " + rule.getClass().getSimpleName() + " on " + con);
 					Result r = tryApplyRule(con, rule, null, currentAssignment);
 					if (r == null) {
-						//res.getNewUnsolvedConstraints().add(con);
+						//System.out.println("DEBUG: Rule " + rule.getClass().getSimpleName() + " was not applicable.");
 						continue;
 					}
-					if (!r.wasSuccessful())
+					if (!r.wasSuccessful()) {
+						//System.out.println("DEBUG: Rule " + rule.getClass().getSimpleName() + " failed!");
 						return r;
+					}
+
 					res.getSolvedConstraints().add(con);
 					res.getNewSubsumers().addAll(r.getNewSubsumers());
-					res.getNewUnsolvedConstraints().addAll(r.getNewUnsolvedConstraints());
+					//res.getNewUnsolvedConstraints().addAll(r.getNewUnsolvedConstraints());
+					for (Object newSub : r.getNewUnsolvedConstraints()) {
+						boolean exists = res.getNewUnsolvedConstraints().stream().anyMatch(c -> c.equals(newSub));
+						if (!exists) {
+							res.getNewUnsolvedConstraints().add(newSub);
+						} /*else {
+							System.out.println("DEBUG: applyEagerRules detected duplicate: " + newSub);
+						}*/
+
+					}
+
 					if (currentAssignment != null) {
 						currentAssignment.addAll(r.getNewSubsumers());
 					}
@@ -303,6 +428,50 @@ public class RuleBasedUnificationAlgorithm extends AbstractUnificationAlgorithm 
 				return true;
 			}
 			previous = null;
+		}
+		return false;
+	}
+
+	//private Map<Atom, Set<Atom>> selectedTypesHistory = new HashMap<>();
+	private boolean applyTypeChoosingRule(Atom var, Rule.Application previous) {
+		TypeChoosing rule = new TypeChoosing();
+		//boolean foundAtLeastOne = false;
+		while (true) {
+			Rule.Application application = (previous == null) ? rule.getFirstApplication(var, assignment) :
+					rule.getNextApplication(var, assignment, previous);
+
+			if (application == null) {
+				break; // No more applications available
+				//return false;
+			}
+
+			//System.out.println("DEBUG: Before applying TypeChoosing: " + assignment.types);
+			Result result = rule.apply(var, assignment, application);
+			//System.out.println("DEBUG: After applying TypeChoosing: " + assignment.types);
+
+			previous = application; // Update previous to track progress
+
+			if (!result.wasSuccessful()) {
+				continue; // Skip failed attempts
+			}
+
+			// Commit the successful result
+			if (!commitResult(result, null)) {
+				deadEnds++;
+				rollBackResult(result);
+				continue;
+			}
+
+			if (!applyEagerRules(result)) {
+				deadEnds++;
+				rollBackResult(result);
+				continue;
+			}
+
+			searchStack.push(result); // Push successful result to the stack
+			treeSize++;
+			return true;
+			//foundAtLeastOne = true;
 		}
 		return false;
 	}
@@ -379,19 +548,26 @@ public class RuleBasedUnificationAlgorithm extends AbstractUnificationAlgorithm 
 	 *         applications are possible
 	 */
 	private Result tryApplyRule(FlatConstraint con, Rule rule, Application previous, Assignment currentAssignment) {
+		//System.out.println("DEBUG: Trying to apply " + rule.getClass().getSimpleName() + " to " + con);
+
 		Rule.Application next;
 		if (previous == null) {
 			next = rule.getFirstApplication(con, currentAssignment);
 		} else {
 			next = rule.getNextApplication(con, currentAssignment, previous);
 		}
+
 		if (next == null) {
+			//System.out.println("DEBUG: No application for " + rule.getClass().getSimpleName() + " on " + con);
 			return null;
 		}
 
 		Result res = rule.apply(con, currentAssignment, next);
+
+
 		return res;
 	}
+
 
 	/**
 	 * Adds the new unsolved subsumptions and dissubsumptions resulting from a rule application to
@@ -410,41 +586,64 @@ public class RuleBasedUnificationAlgorithm extends AbstractUnificationAlgorithm 
 	 * @return <code>true</code> if and only if the execution was successful
 	 */
 	private boolean commitResult(Result res, Assignment newAssignment) {
+		//System.out.println("DEBUG: Committing result for " + res.getConstraint());
 		// solve subsumption that triggered the rule
-		if (res.getConstraint() != null) {
-			res.getConstraint().setSolved(true);
+		if (res.getConstraint() != null && res.getConstraint() instanceof FlatConstraint) {
+			((FlatConstraint) res.getConstraint()).setSolved(true);
 		}
 
 		// add new unsolved constraints to the goal
 		res.getNewUnsolvedConstraints().removeAll(normalizedGoal);
 		normalizedGoal.addAll(res.getNewUnsolvedConstraints());
-		for (FlatConstraint con : res.getNewUnsolvedConstraints()) {
-			if (!con.isDissubsumption()) {
-				if (con.getHead().isVariable()) {
-					// subsumptions with a variable on the right-hand side are
-					// always solved
-					con.setSolved(true);
-					res.getNewSolvedConstraints().add(con);
-				}
-			}
-			else {
-				if (con.getBody().size() == 1 && con.getDissubsumptionHead().size() == 1) {
-					if (con.getBody().get(0).isVariable() && !con.getDissubsumptionHead().get(0).isVariable()) {
+		for (Object obj : res.getNewUnsolvedConstraints()) {
+			if (obj instanceof FlatConstraint) {
+				FlatConstraint con = (FlatConstraint) obj;
+				if (!con.isDissubsumption()) {
+					if (con.getHead().isVariable()) {
+						// subsumptions with a variable on the right-hand side are
+						// always solved
 						con.setSolved(true);
 						res.getNewSolvedConstraints().add(con);
 					}
 				}
+				else {
+					if (con.getBody().size() == 1 && con.getDissubsumptionHead().size() == 1) {
+						if (con.getBody().get(0).isVariable() && !con.getDissubsumptionHead().get(0).isVariable()) {
+							con.setSolved(true);
+							res.getNewSolvedConstraints().add(con);
+						}
+					}
+				}
 			}
 		}
+
 		res.getNewUnsolvedConstraints().removeAll(res.getNewSolvedConstraints());
 
 		// goal expansion (I)
+		for (Object obj : res.getNewSolvedConstraints()) {
+			if (obj instanceof FlatConstraint) {
+				FlatConstraint con = (FlatConstraint) obj;
+				if (!con.isDissubsumption()) {
+					/*
+					 * we can assume that all new solved subsumptions have a variable in
+					 * the head
+					 */
+					Set<FlatConstraint> newSubs = normalizedGoal.expand(con, assignment.getSubsumers(con.getHead()));
+					res.getNewUnsolvedConstraints().addAll(newSubs);
+				}
+				else {
+					Set<FlatConstraint> newSubs = normalizedGoal.expand(con, assignment.getSubsumers(con.getBody().get(0)));
+					res.getNewUnsolvedConstraints().addAll(newSubs);
+				}
+			}
+		}
+		/*// goal expansion (I)
 		for (FlatConstraint con : res.getNewSolvedConstraints()) {
 			if (!con.isDissubsumption()) {
-				/*
+				*//*
 				 * we can assume that all new solved subsumptions have a variable in
 				 * the head
-				 */
+				 *//*
 				Set<FlatConstraint> newSubs = normalizedGoal.expand(con, assignment.getSubsumers(con.getHead()));
 				res.getNewUnsolvedConstraints().addAll(newSubs);
 			}
@@ -452,12 +651,17 @@ public class RuleBasedUnificationAlgorithm extends AbstractUnificationAlgorithm 
 				Set<FlatConstraint> newSubs = normalizedGoal.expand(con, assignment.getSubsumers(con.getBody().get(0)));
 				res.getNewUnsolvedConstraints().addAll(newSubs);
 			}
-		}
+		}*/
 
-		// solve subsumptions and dissubsumptions in 'res.solvedConstraints'
+		for (Object con : res.getSolvedConstraints()) {
+			if (con instanceof FlatConstraint) {
+				((FlatConstraint) con).setSolved(true);
+			}
+		}
+		/*// solve subsumptions and dissubsumptions in 'res.solvedConstraints'
 		for (FlatConstraint con : res.getSolvedConstraints()) {
 			con.setSolved(true);
-		}
+		}*/
 
 		// update current assignment
 		res.getNewSubsumers().removeAll(assignment);
@@ -466,21 +670,101 @@ public class RuleBasedUnificationAlgorithm extends AbstractUnificationAlgorithm 
 		} else {
 			assignment = newAssignment;
 		}
+		//System.out.println("DEBUG: assignment.types after commit: " + assignment.types);
 
 		// goal expansion (II)
 		Set<FlatConstraint> newCons = normalizedGoal.expand(res.getNewSubsumers());
 		res.getNewUnsolvedConstraints().addAll(newCons);
 
+		// goal expansion (III)
+		Set<Integer> allVars = new HashSet<>(goal.getAtomManager().getVariables());
+		for (Integer variableId : allVars) {
+			Atom var = goal.getAtomManager().getAtom(variableId);
+			//System.out.println("Goal expansion III for " + var);
+
+				/*for (Atom atom : assignment.types.get(var)) {
+					System.out.println("Type of this variable" + var + " is: " +  atom);
+				}*/
+			if (assignment.types.get(var) != null && assignment.types.get(var).size() == 1) {
+				Atom type = assignment.types.get(var).get(0);
+				Integer typeIndex = goal.getAtomManager().getIndex(type);
+				if (goal.getRoleGroupTypes().values().contains(typeIndex)) {
+					for (Integer varId : goal.getAtomManager().getVariables()) {
+						Atom body = goal.getAtomManager().getAtom(varId);
+						for (Atom at : assignment.getSubsumers(body)) {
+							if (at.isExistentialRestriction() && ((ExistentialRestriction)at).getRoleId().equals(goal.getAtomManager().getRoleId(goal.SNOMED_RoleGroup_URI()))) {
+								Atom child = at.getConceptName();
+								if (child.equals(var)) {
+									Atom head = null;
+									for (Map.Entry<Integer, Integer> entry : goal.getRoleGroupTypes().entrySet()) {
+										if (entry.getValue().equals(typeIndex)) {
+											Integer headId = entry.getKey();
+											head = goal.getAtomManager().getAtom(headId);
+											break;
+										}
+									} // find the parent according to the role group type
+									//assignment.types.computeIfAbsent(body, b -> new ArrayList<>()).add(head);
+									if (head != null) {
+										/*assignment.types.putIfAbsent(body, new LinkedList<>());  // 确保 body 存在
+										if (!assignment.types.get(body).contains(head)) {  // 避免重复添加
+											assignment.types.get(body).add(head);
+											System.out.println("Adding type for " + body);
+										}*/
+										if (!assignment.types.get(body).contains(head)) {
+											assignment.types.computeIfAbsent(body, k -> new ArrayList<>()).add(head);
+											//System.out.println("Adding type " + head +  " for " + body);
+										}
+										/*FlatConstraint newSub = new FlatConstraint(Collections.<Atom> singletonList(head), type, false);
+										boolean existsInGoal = normalizedGoal.stream().anyMatch(c -> c.equals(newSub));
+										boolean existsInNew = res.getNewUnsolvedConstraints().stream().anyMatch(c -> c.equals(newSub));
+
+										if (!existsInGoal && !existsInNew) {
+											res.getNewUnsolvedConstraints().add(newSub);
+											System.out.println("Adding new subsumption: " + newSub);
+										} else {
+											System.out.println("DEBUG: Duplicate detected: " + newSub);
+										}*/
+
+									}
+								}
+							}
+						}
+					}
+				} else {
+					FlatConstraint newSub = new FlatConstraint(Collections.<Atom> singletonList(var), type, false);
+					//boolean existsInGoal = normalizedGoal.stream().anyMatch(c -> c.equals(newSub));
+					//boolean existsInNew = res.getNewUnsolvedConstraints().stream().anyMatch(c -> c.equals(newSub));
+
+					if (!res.getNewUnsolvedConstraints().contains(newSub)) {
+						res.getNewUnsolvedConstraints().add(newSub);
+						//System.out.println("Adding new subsumption: " + newSub);
+					} /*else {
+						System.out.println("DEBUG: Duplicate detected: " + newSub);
+					}*/
+
+
+
+				}
+			}
+		}
+
 		// try to solve new unsolved subsumptions and dissubsumptions by static eager rules
 		Result eagerRes = applyEagerRules(res.getNewUnsolvedConstraints(), staticEagerRules, null);
-		if (!eagerRes.wasSuccessful())
+		if (!eagerRes.wasSuccessful()) {
+			//System.out.println("DEBUG: commitResult() failed due to applyEagerRules failure.");
 			return false;
+		}
 
-		for (FlatConstraint con : eagerRes.getSolvedConstraints()) {
-			con.setSolved(true);
+
+		for (Object con : eagerRes.getSolvedConstraints()) {
+			if (con instanceof FlatConstraint) {
+				((FlatConstraint) con).setSolved(true);
+			}
+
 		}
 
 		res.amend(eagerRes);
+		//System.out.println("DEBUG: assignment.types after commit: " + assignment.types);
 		return true;
 	}
 
@@ -496,11 +780,19 @@ public class RuleBasedUnificationAlgorithm extends AbstractUnificationAlgorithm 
 		normalizedGoal.removeAll(res.getNewSolvedConstraints());
 		normalizedGoal.removeAll(res.getNewUnsolvedConstraints());
 
-		for (FlatConstraint con : res.getSolvedConstraints()) {
-			con.setSolved(false);
+
+		for (Object con : res.getSolvedConstraints()) {
+			//System.out.println("rollback for :" + con);
+			if (con instanceof FlatConstraint) {
+				((FlatConstraint)con).setSolved(false);
+			}
 		}
 
-		res.getConstraint().setSolved(false);
+
+		if (res.getConstraint() instanceof FlatConstraint) {
+			((FlatConstraint) res.getConstraint()).setSolved(false);
+		}
+
 	}
 
 }

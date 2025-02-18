@@ -42,8 +42,8 @@ public class EagerAtomicDecomposition2 extends EagerRule{
                 res.getNewUnsolvedConstraints().add(newDissub);
                 //res.getNewUnsolvedConstraints().add(newSub);
 
-                System.out.println("new constraints have been added:" + res.getNewUnsolvedConstraints());
-                System.out.println("EAD has been applied" + dissub);
+                //System.out.println("new constraints have been added:" + res.getNewUnsolvedConstraints());
+                //System.out.println("EAD has been applied" + dissub);
                 return res;
             }
         }

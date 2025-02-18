@@ -14,7 +14,7 @@ import de.tudresden.inf.lat.uel.rule.Result;
  * 
  * @author Stefan Borgwardt
  */
-public abstract class Rule {
+public abstract class Rule<T> {
 
 	/**
 	 * Returns the first possible application of this rule to the given
@@ -27,7 +27,7 @@ public abstract class Rule {
 	 * @return a rule application describing the arguments needed to apply this
 	 *         rule or 'null' if the rule is not applicable
 	 */
-	public abstract Application getFirstApplication(FlatConstraint con, Assignment assign);
+	public abstract Application getFirstApplication(T con, Assignment assign);
 
 	/**
 	 * Returns the next application of this rule to the given subsumption or dissubsumption. It is
@@ -44,7 +44,7 @@ public abstract class Rule {
 	 * @return a rule application describing the arguments needed to apply this
 	 *         rule or 'null' if there are no more ways to apply this rule
 	 */
-	public abstract Application getNextApplication(FlatConstraint con, Assignment assign, Application previous);
+	public abstract Application getNextApplication(T con, Assignment assign, Application previous);
 
 	/**
 	 * Applies this rule to the given subsumption or dissubsumption using the arguments stored in
@@ -60,7 +60,7 @@ public abstract class Rule {
 	 *            application
 	 * @return the result of the application
 	 */
-	public abstract Result apply(FlatConstraint con, Assignment assign, Application application);
+	public abstract Result apply(T con, Assignment assign, Application application);
 
 	/**
 	 * A shortcut that can be used to identify the type of this rule in a string
@@ -84,7 +84,7 @@ public abstract class Rule {
 		 * 
 		 * @return the rule object that was applied
 		 */
-		public final Rule rule() {
+		public final Rule<T> rule() {
 			return Rule.this;
 		}
 

@@ -11,26 +11,26 @@ import de.tudresden.inf.lat.uel.type.api.Atom;
  * 
  * @author Stefan Borgwardt
  */
-public final class ExtensionRule extends Rule {
+public final class ExtensionRule extends Rule<FlatConstraint> {
 
 	@Override
 	public Application getFirstApplication(FlatConstraint sub, Assignment assign) {
-		System.out.println("ExtensionRule: Getting first application for constraint: " + sub);
+		//System.out.println("ExtensionRule: Getting first application for constraint: " + sub);
 		if (!sub.isDissubsumption()) {
 			for (Atom at : sub.getBody()) {
 				if (at.isVariable()) {
-					System.out.println("ExtensionRule: First application found: " + at);
+					//System.out.println("ExtensionRule: First application found: " + at);
 					return new Application(at);
 				}
 			}
 		}
-		System.out.println("ExtensionRule: No valid first application found.");
+		//System.out.println("ExtensionRule: No valid first application found.");
 		return null;
 	}
 
 	@Override
 	public Application getNextApplication(FlatConstraint sub, Assignment assign, Rule.Application previous) {
-		System.out.println("ExtensionRule: Getting next application for constraint: " + sub + " after previous: " + previous);
+		//System.out.println("ExtensionRule: Getting next application for constraint: " + sub + " after previous: " + previous);
 		if (!sub.isDissubsumption()) {
 			if (!(previous instanceof Application)) {
 				throw new IllegalArgumentException("Expected rule application of type ExtensionRule.Application.");
@@ -39,12 +39,12 @@ public final class ExtensionRule extends Rule {
 			for (int i = sub.getBody().indexOf(appl.at) + 1; i < sub.getBody().size(); i++) {
 				if (sub.getBody().get(i).isVariable()) {
 					appl.at = sub.getBody().get(i);
-					System.out.println("ExtensionRule: Next application found: " + appl.at);
+					//System.out.println("ExtensionRule: Next application found: " + appl.at);
 					return appl;
 				}
 			}
 		}
-		System.out.println("ExtensionRule: No valid next application found.");
+		//System.out.println("ExtensionRule: No valid next application found.");
 		return null;
 	}
 
@@ -57,9 +57,16 @@ public final class ExtensionRule extends Rule {
 		if (assign.makesCyclic(appl.at, sub.getHead())) {
 			return new Result(sub, application, false);
 		}
+		if (sub.getHead().isExistentialRestriction()){
+			// domain and range restrictions
+			if (!assign.isCompatibleTypeAboutDomain(appl.at, sub.getHead()) || !assign.isCompatibleTypeAboutRange(sub.getHead())) {
+				return new Result(sub, application, false);
+				//return null;
+			}
+		}
 		Result res = new Result(sub, application);
 		res.getNewSubsumers().add(appl.at, sub.getHead());
-		System.out.println("Ext has been applied" + sub);
+		//System.out.println("Ext has been applied" + sub);
 		return res;
 	}
 

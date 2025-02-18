@@ -30,7 +30,7 @@ public final class EagerSolving2Rule extends EagerRule {
 
 	@Override
 	public Result apply(FlatConstraint sub, Assignment assign, Application application) {
-		System.out.println("ES2 has been applied" + sub);
+		//System.out.println("ES2 has been applied" + sub);
 		return new Result(sub, application);
 	}
 

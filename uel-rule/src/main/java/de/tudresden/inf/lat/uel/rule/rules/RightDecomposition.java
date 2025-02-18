@@ -18,7 +18,7 @@ import de.tudresden.inf.lat.uel.type.impl.ExistentialRestriction;
  *
  * @author Stefan Borgwardt
  */
-public final class RightDecomposition extends Rule {
+public final class RightDecomposition extends Rule<FlatConstraint> {
 
     @Override
     public Application getFirstApplication(FlatConstraint dissub, Assignment assign) {
@@ -60,7 +60,7 @@ public final class RightDecomposition extends Rule {
         List<Atom> body = dissub.getBody();
         FlatConstraint newDissub = new FlatConstraint(body, Collections.<Atom> singletonList(head), true);
         res.getNewUnsolvedConstraints().add(newDissub);
-        System.out.println("RDec has been applied" + dissub);
+        //System.out.println("RDec has been applied" + dissub);
         return res;
     }
 

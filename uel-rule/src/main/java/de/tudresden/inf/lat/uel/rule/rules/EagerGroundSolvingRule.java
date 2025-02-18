@@ -24,7 +24,7 @@ public final class EagerGroundSolvingRule extends EagerRule {
 
 	@Override
 	public Result apply(FlatConstraint sub, Assignment assign, Application application) {
-		System.out.println("EGr has been applied" + sub);
+		//System.out.println("EGr has been applied" + sub);
 		return new Result(sub, application, sub.getBody().contains(sub.getHead()));
 	}
 

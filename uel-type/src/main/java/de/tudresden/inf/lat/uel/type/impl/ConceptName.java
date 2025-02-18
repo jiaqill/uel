@@ -46,7 +46,7 @@ public class ConceptName implements Atom {
 		return this;
 	}
 
-	Integer getConceptNameId() {
+	public Integer getConceptNameId() {
 		return conceptNameId;
 	}
 

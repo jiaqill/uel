@@ -1,10 +1,10 @@
 package de.tudresden.inf.lat.uel.rule;
 
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 
 import de.tudresden.inf.lat.uel.rule.rules.Rule.Application;
-import de.tudresden.inf.lat.uel.type.api.Goal;
 
 /**
  * Instances of this class describe the result of applying a rule of the
@@ -13,10 +13,13 @@ import de.tudresden.inf.lat.uel.type.api.Goal;
  * 
  * @author Stefan Borgwardt
  */
-public final class Result {
+public final class Result<T> {
 
-	private final FlatConstraint constraint;
+	private final T trigger;
 	private final Application application;
+	/*private final Set<FlatConstraint> newUnsolvedConstraints = new HashSet<>();
+	private final Set<FlatConstraint> newSolvedConstraints = new HashSet<>();
+	private final Set<FlatConstraint> solvedConstraints = new HashSet<>();*/
 	private final Set<FlatConstraint> newUnsolvedConstraints = new HashSet<>();
 	private final Set<FlatConstraint> newSolvedConstraints = new HashSet<>();
 	private final Set<FlatConstraint> solvedConstraints = new HashSet<>();
@@ -26,15 +29,15 @@ public final class Result {
 	/**
 	 * Construct a new rule application result.
 	 * 
-	 * @param constraint
+	 * @param trigger
 	 *            the constraint that triggered the rule application
 	 * @param application
 	 *            the rule application
 	 * @param successful
 	 *            a flag indicating whether the rule application was successful
 	 */
-	public Result(FlatConstraint constraint, Application application, boolean successful) {
-		this.constraint = constraint;
+	public Result(T trigger, Application application, boolean successful) {
+		this.trigger = trigger;
 		this.application = application;
 		this.successful = successful;
 	}
@@ -43,13 +46,13 @@ public final class Result {
 	 * Construct a new rule application result, assuming that the application
 	 * was successful.
 	 * 
-	 * @param constraint
+	 * @param trigger
 	 *            the constraint that triggered the rule application
 	 * @param application
 	 *            the rule application
 	 */
-	public Result(FlatConstraint constraint, Application application) {
-		this(constraint, application, true);
+	public Result(T trigger, Application application) {
+		this(trigger, application, true);
 	}
 
 	/**
@@ -59,20 +62,19 @@ public final class Result {
 	 * @param res
 	 *            the result that is to be added to the current result
 	 */
-	void amend(Result res) {
-		/*
-		 * the result of (committed) eager rule applications should be added to
-		 * the (committed) main result
-		 */
-		if (res.constraint != null) {
-			solveConstraint(res.constraint);
+	void amend(Result<T> res) {
+		if (res.trigger instanceof FlatConstraint) {
+			solveConstraint((FlatConstraint) res.trigger);
 		}
 
 		newUnsolvedConstraints.addAll(res.newUnsolvedConstraints);
 		newSolvedConstraints.addAll(res.newSolvedConstraints);
+
+		// Iterate through solved constraints and cast explicitly
 		for (FlatConstraint sub : res.solvedConstraints) {
 			solveConstraint(sub);
 		}
+
 		newSubsumers.addAll(res.newSubsumers);
 	}
 
@@ -82,6 +84,7 @@ public final class Result {
 		} else {
 			solvedConstraints.add(sub);
 		}
+
 	}
 
 	/**
@@ -89,9 +92,16 @@ public final class Result {
 	 * 
 	 * @return the triggering constraint
 	 */
-	FlatConstraint getConstraint() {
-		return constraint;
+	T getConstraint() {
+		return trigger;
 	}
+
+	/*Atom getAtom() {
+		if (trigger instanceof Atom) {
+			return (Atom) trigger;
+		}
+		return null;
+	}*/
 
 	/**
 	 * Return the rule application that led to this result.
@@ -155,7 +165,7 @@ public final class Result {
 	/**
 	 * Retrieve the solved constraints that resulted from the rule application
 	 * or subsequent applications of eager rules.
-	 * 
+	 *
 	 * @return a set of solved constraints
 	 */
 	Set<FlatConstraint> getSolvedConstraints() {
@@ -166,7 +176,7 @@ public final class Result {
 	public String toString() {
 		StringBuffer buf = new StringBuffer();
 		buf.append("{");
-		buf.append(constraint);
+		buf.append(trigger);
 		buf.append(",");
 		buf.append(application);
 		buf.append(",");

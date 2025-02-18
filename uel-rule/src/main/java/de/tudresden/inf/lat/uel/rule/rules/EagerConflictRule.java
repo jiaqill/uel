@@ -59,7 +59,7 @@ public final class EagerConflictRule extends EagerRule {
 
 	@Override
 	public Result apply(FlatConstraint sub, Assignment assign, Application application) {
-		System.out.println("ECo has been applied" + sub);
+		//System.out.println("ECo has been applied" + sub);
 		return new Result(sub, application, false);
 	}
 

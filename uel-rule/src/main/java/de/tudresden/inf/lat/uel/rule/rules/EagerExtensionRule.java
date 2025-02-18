@@ -4,6 +4,14 @@ import de.tudresden.inf.lat.uel.rule.Assignment;
 import de.tudresden.inf.lat.uel.rule.FlatConstraint;
 import de.tudresden.inf.lat.uel.rule.Result;
 import de.tudresden.inf.lat.uel.type.api.Atom;
+import de.tudresden.inf.lat.uel.type.api.Goal;
+import de.tudresden.inf.lat.uel.type.impl.ConceptName;
+import de.tudresden.inf.lat.uel.type.impl.ExistentialRestriction;
+
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * This class implements the rule 'Eager Extension' of the rule-based algorithm
@@ -51,11 +59,23 @@ public final class EagerExtensionRule extends EagerRule {
 		}
 		Application appl = (Application) application;
 		if (assign.makesCyclic(appl.var, sub.getHead())) {
+			//System.out.println("DEBUG: Make cyclic!");
 			return new Result(sub, application, false);
 		}
+		if (sub.getHead().isExistentialRestriction()){
+			// domain and range restrictions
+			boolean cDomain = assign.isCompatibleTypeAboutDomain(appl.var, sub.getHead());
+			boolean cRange = assign.isCompatibleTypeAboutRange(sub.getHead());
+			if (!cDomain || !cRange) {
+				System.out.println("DEBUG: Domain or range not compatible! " + cDomain + cRange);
+				return new Result(sub, application, false);
+				//return null;
+			}
+		}
+
 		Result res = new Result(sub, application);
 		res.getNewSubsumers().add(appl.var, sub.getHead());
-		System.out.println("EEx has been applied" + sub);
+		//System.out.println("EEx has been applied" + sub);
 		return res;
 	}
 

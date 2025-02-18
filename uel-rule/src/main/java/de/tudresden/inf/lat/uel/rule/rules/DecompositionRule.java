@@ -15,33 +15,33 @@ import de.tudresden.inf.lat.uel.type.impl.ExistentialRestriction;
  * 
  * @author Stefan Borgwardt
  */
-public final class DecompositionRule extends Rule {
+public final class DecompositionRule extends Rule<FlatConstraint> {
 
 	@Override
 	public Application getFirstApplication(FlatConstraint sub, Assignment assign) {
-		System.out.println("DecompositionRule: Getting first application for constraint: " + sub);
+		//System.out.println("DecompositionRule: Getting first application for constraint: " + sub);
 		if (!sub.isDissubsumption()) {
 			if (!sub.getHead().isExistentialRestriction()) {
-				System.out.println("DecompositionRule: Head is not an existential restriction.");
+				//System.out.println("DecompositionRule: Head is not an existential restriction.");
 				return null;
 			}
 			Integer role = ((ExistentialRestriction) sub.getHead()).getRoleId();
 			for (Atom at : sub.getBody()) {
 				if (at.isExistentialRestriction()) {
 					if (((ExistentialRestriction) at).getRoleId().equals(role)) {
-						System.out.println("DecompositionRule: First application found: " + at);
+						//System.out.println("DecompositionRule: First application found: " + at);
 						return new Application(role, at);
 					}
 				}
 			}
 		}
-		System.out.println("DecompositionRule: No valid first application found.");
+		//System.out.println("DecompositionRule: No valid first application found.");
 		return null;
 	}
 
 	@Override
 	public Application getNextApplication(FlatConstraint sub, Assignment assign, Rule.Application previous) {
-		System.out.println("DecompositionRule: Getting next application for constraint: " + sub + " after previous: " + previous);
+		//System.out.println("DecompositionRule: Getting next application for constraint: " + sub + " after previous: " + previous);
 		if (!sub.isDissubsumption()) {
 			if (!(previous instanceof Application)) {
 				throw new IllegalArgumentException("Expected rule application of type DecompositionRule.Application.");
@@ -52,13 +52,13 @@ public final class DecompositionRule extends Rule {
 				if (at.isExistentialRestriction()) {
 					if (((ExistentialRestriction) at).getRoleId().equals(appl.role)) {
 						appl.at = sub.getBody().get(i);
-						System.out.println("DecompositionRule: Next application found: " + appl.at);
+						//System.out.println("DecompositionRule: Next application found: " + appl.at);
 						return appl;
 					}
 				}
 			}
 		}
-		System.out.println("DecompositionRule: No valid next application found.");
+		//System.out.println("DecompositionRule: No valid next application found.");
 		return null;
 	}
 
@@ -72,7 +72,7 @@ public final class DecompositionRule extends Rule {
 		ConceptName body = ((Application) application).at.getConceptName();
 		FlatConstraint newSub = new FlatConstraint(Collections.<Atom> singletonList(body), head, false);
 		res.getNewUnsolvedConstraints().add(newSub);
-		System.out.println("Dec has been applied" + sub);
+		//System.out.println("Dec has been applied" + sub);
 		return res;
 	}
 

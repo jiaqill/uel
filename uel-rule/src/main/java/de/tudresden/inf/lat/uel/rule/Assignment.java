@@ -5,6 +5,9 @@ import java.util.Map.Entry;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import de.tudresden.inf.lat.uel.type.api.Atom;
+import de.tudresden.inf.lat.uel.type.api.AtomManager;
+import de.tudresden.inf.lat.uel.type.api.Goal;
+import de.tudresden.inf.lat.uel.type.impl.ExistentialRestriction;
 
 /**
  * An assignment of sets of non-variable atoms to variables. Such an assignment
@@ -15,7 +18,9 @@ import de.tudresden.inf.lat.uel.type.api.Atom;
 public class Assignment {
 
 	private final Map<Atom, Set<Atom>> subs = new HashMap<>();
-	private List<Atom> nonVariableAtoms;
+	//private List<Atom> nonVariableAtoms;
+	public Goal goal;
+	public Map<Atom, List<Atom>> types = new HashMap<>();
 
 	/**
 	 * Create an empty assignment.
@@ -25,10 +30,19 @@ public class Assignment {
 	/**
 	 * Create an assignment with a list of non-variable atoms.
 	 *
-	 * @param nonVariableAtoms the list of non-variable atoms
+	 //* @param nonVariableAtoms the list of non-variable atoms
 	 */
-	Assignment(List<Atom> nonVariableAtoms) {
+	/*Assignment(List<Atom> nonVariableAtoms) {
 		this.nonVariableAtoms = nonVariableAtoms;
+	}*/
+
+	public Assignment(Goal goal) {
+		if (goal == null) {
+			throw new IllegalArgumentException("Goal cannot be null!");
+		}
+		this.goal = goal;
+		//this.nonVariableAtoms = nonVariableAtoms;
+		this.types = new HashMap<>();
 	}
 
 	/**
@@ -39,12 +53,19 @@ public class Assignment {
 	 */
 	Assignment(Assignment other) {
 		addAll(other);
-		this.nonVariableAtoms = other.getNonVariableAtoms();
+		addAllTypes(other);
+		//this.nonVariableAtoms = other.getNonVariableAtoms();
+		this.goal = other.goal;
+		/*this.types = new HashMap<>();
+		for (Map.Entry<Atom, List<Atom>> entry : other.types.entrySet()) {
+			this.types.put(entry.getKey(), new ArrayList<>(entry.getValue()));
+		}*/
 	}
 
 	public List<Atom> getNonVariableAtoms() {
 		//return Collections.unmodifiableList(nonVariableAtoms);
-		return this.nonVariableAtoms;
+		//return this.nonVariableAtoms;
+		return this.goal.getAtomManager().getNonvariableAtoms();
 	}
 
 	/**
@@ -179,6 +200,58 @@ public class Assignment {
 	}
 
 	/**
+	 * Add a set of atom types to the assignment of a variable.
+	 *
+	 * @param var the variable
+	 * @param at the new types
+	 * @return true iff the assignment was changed as a result of this operation
+	 */
+	public boolean addAllTypes(Atom var, Set<Atom> at) {
+		if (at == null || at.isEmpty()) {
+			return false;
+		}
+		List<Atom> typeList = getOrInitType(var);
+		boolean changed = false;
+		for (Atom atom : at) {
+			if (!typeList.contains(atom)) {
+				typeList.add(atom);
+				changed = true;
+			}
+		}
+		return changed;
+	}
+
+	/**
+	 * Add another variable type assignment to this assignment.
+	 *
+	 * @param other the assignment to be merged into this one
+	 * @return true iff the assignment was changed as a result of this operation
+	 */
+	public boolean addAllTypes(Assignment other) {
+		if (other == null) {
+			return false;
+		}
+		boolean changed = false;
+		for (Entry<Atom, List<Atom>> entry : other.types.entrySet()) {
+			if (addAllTypes(entry.getKey(), new HashSet<>(entry.getValue()))) {
+				changed = true;
+			}
+		}
+		return changed;
+	}
+
+	/**
+	 * Get or initialize the type list for a variable.
+	 *
+	 * @param var the variable
+	 * @return the initialized list of assigned types
+	 */
+	private List<Atom> getOrInitType(Atom var) {
+		return types.computeIfAbsent(var, k -> new ArrayList<>());
+	}
+
+
+	/**
 	 * Checks if there is a dependency of 'a' on 'b', i.e., whether 'b' is
 	 * reachable from 'a' in the graph representation of the current assignment.
 	 * It is important that the current assignment is acyclic; otherwise, this
@@ -253,6 +326,97 @@ public class Assignment {
 		}
 		buf.append("]");
 		return buf.toString();
+	}
+
+	// domain restrictions
+	public boolean isCompatibleTypeAboutDomain(Atom var, Atom at) {
+		if (goal == null) {
+			throw new IllegalStateException("Goal has not been initialized!");
+		}
+		if (goal.getDomains() == null || goal.getDomains().isEmpty()) {
+			System.out.println("goal.getDomains() == null!");
+			return false; // Or return true, depending on your logic
+		}
+
+		Integer roleId = ((ExistentialRestriction)at).getRoleId();
+		Set<Integer> domain = goal.getDomains().get(roleId);
+		if (roleId.equals(goal.getAtomManager().getRoleId(goal.SNOMED_RoleGroup_URI()))) {
+			domain = new HashSet<>(goal.getRoleGroupTypes().keySet()) ;
+		}
+		//Set<Integer> head = new HashSet<>();
+		// If domain is null or empty, return false (or another logic)
+		if (domain == null || domain.isEmpty()) {
+			System.out.println("domain == null!");
+			return false;
+		}
+
+		List<Atom> atomList = new ArrayList<>();
+		for (Integer id : domain) {
+			Atom atom = goal.getAtomManager().getAtom(id); // Translate integer to atom
+			if (atom != null) {
+				atomList.add(atom);
+			}
+		}
+		List<Atom> originalTypes = types.get(var) != null ? new ArrayList<>(types.get(var)) : null;
+		if (types.get(var) != null) {
+			List<Atom> copy = new ArrayList<>(types.get(var));
+			copy.retainAll(atomList); // keep only common elements
+			if (!copy.isEmpty()) {
+				types.put(var, copy);
+				return true;
+			} else {
+				/*for (Atom type : originalTypes) {
+					System.out.println("Types of "+ var + " "+ goal.getAtomManager().getIndex(type));
+				}
+				for (Integer d : domain) {
+					System.out.println("Domain of "+ roleId + " "+ d);
+				}
+				System.out.println("");*/
+				/*if (originalTypes != null) {
+					types.put(var, originalTypes);
+				} else {
+					types.remove(var);
+				}*/
+				return false;
+			}
+		} else {
+			types.put(var, atomList);
+			return true;
+		}
+	}
+
+	// range restrictions
+	public boolean isCompatibleTypeAboutRange(Atom at) {
+		Integer roleId = ((ExistentialRestriction)at).getRoleId();
+
+		Atom child = at.getConceptName();
+		if (!child.isVariable()) {
+			return true;
+		}
+		Set<Integer> range = goal.getRanges().get(roleId);
+		if (roleId.equals(goal.getAtomManager().getRoleId(goal.SNOMED_RoleGroup_URI()))) {
+			range = new HashSet<>(goal.getRoleGroupTypes().values()) ;
+		}
+		List<Atom> atomList = new ArrayList<>();
+		for (Integer id : range) {
+			Atom atom = goal.getAtomManager().getAtom(id); // Translate integer to atom
+			if (atom != null) {
+				atomList.add(atom);
+			}
+		}
+		if (types.get(child) != null) {
+			List<Atom> copy = new ArrayList<>(types.get(child));
+			copy.retainAll(atomList); // keep only common elements
+			if (!copy.isEmpty()) {
+				types.put(child, copy);
+				return true;
+			} else {
+				return false;
+			}
+		} else {
+			types.put(child, atomList);
+			return true;
+		}
 	}
 
 }

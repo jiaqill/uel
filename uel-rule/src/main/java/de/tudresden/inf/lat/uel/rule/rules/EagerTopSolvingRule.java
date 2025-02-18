@@ -19,7 +19,7 @@ public class EagerTopSolvingRule extends EagerRule{
 
     @Override
     public Result apply(FlatConstraint dissub, Assignment assign, Rule.Application application) {
-        System.out.println("Ets has been applied" + dissub);
+        //System.out.println("Ets has been applied" + dissub);
         return new Result(dissub, application, false);
     }
 

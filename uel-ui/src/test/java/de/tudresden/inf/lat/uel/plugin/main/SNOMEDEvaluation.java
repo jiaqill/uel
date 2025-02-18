@@ -55,60 +55,60 @@ import de.tudresden.inf.lat.uel.plugin.main.SNOMEDResult.SNOMEDGoalStatus;
 public class SNOMEDEvaluation {
 
 	// private static final String WORK_DIR = "C:\\Users\\Stefan\\Work\\";
-	private static final String WORK_DIR = "/Users/stefborg/Documents/";
+	private static final String WORK_DIR = "D:/Master/Thesis/";
 	private static final String OUTPUT_PATH = WORK_DIR + "Projects/uel-snomed/results-";
 	static final String SNOMED_MODULE_PATH = WORK_DIR + "Ontologies/snomed2017-";
 	static final String SNOMED_PATH = SNOMED_MODULE_PATH + "english.owl";
 	static final String SNOMED_RESTR_PATH = SNOMED_MODULE_PATH + "restrictions-no-imports.owl";
 
 	public static final String[] PARENT_CLASSES = new String[] {
+//			//
+//			"Body structure (body structure)",
+//			//
+//			//// "Anatomical structure (body structure)",
+//			//
+//			//// "Morphologically abnormal structure (morphologic abnormality)",
+//			//
+//			"Clinical finding (finding)",
+//			//
+//			"Clinical history and observation findings (finding)",
+//			//
+//			"Functional finding (finding)",
 			//
-			"Body structure (body structure)",
-			//
-			//// "Anatomical structure (body structure)",
-			//
-			//// "Morphologically abnormal structure (morphologic abnormality)",
-			//
-			"Clinical finding (finding)",
-			//
-			"Clinical history and observation findings (finding)",
-			//
-			"Functional finding (finding)",
-			//
-			"Disease (disorder)",
-			//
-			//// "Adverse reaction (disorder)",
-			//
+//			"Disease (disorder)",
+//			//
+//			//// "Adverse reaction (disorder)",
+//			//
 			"Poisoning (disorder)",
-			//
-			//// "Traumatic injury (disorder)",
-			//
-			"Finding by site (finding)",
-			//
-			"Event (event)",
-			//
-			"Observable entity (observable entity)",
-			//
-			"Pharmaceutical / biologic product (product)",
-			//
-			"Procedure (procedure)",
-			//
+//			//
+//			//// "Traumatic injury (disorder)",
+//			//
+//			"Finding by site (finding)",
+//			//
+//			"Event (event)",
+//			//
+//			"Observable entity (observable entity)",
+//			//
+//			"Pharmaceutical / biologic product (product)",
+//			//
+//			"Procedure (procedure)",
+//			//
 	};
 
 	private static final int[] ROLE_GROUP_NO = new int[] { 2 };
 
 	private static final String[] TEST_ALGORITHMS = new String[] {
 			//
-			UnificationAlgorithmFactory.SAT_BASED_ALGORITHM,
+			UnificationAlgorithmFactory.RULE_BASED_ALGORITHM,
 			//
-			// UnificationAlgorithmFactory.ASP_BASED_ALGORITHM,
+			// UnificationAlgorithmFactory.SAT_BASED_ALGORITHM,
 			//
 	};
 
 	static final int MAX_SIBLINGS = 100;
 	static final int MAX_ATOMS = 240;
 	static final boolean CHECK_UNIFIERS = true;
-	private static final int MAX_TESTS = 100;
+	private static final int MAX_TESTS = 5;
 	private static final long TIMEOUT = 5 * 60 * 1000;
 
 	private static String currentParentClass;
@@ -373,6 +373,32 @@ public class SNOMEDEvaluation {
 		Random rnd = new Random();
 		System.out.println("Loading finished (" + definitions.size() + " classes with full definitions).");
 
+		OWLClass goalClass = factory.getOWLClass(IRI.create("http://snomed.info/id/291453006"));
+		for (OWLEquivalentClassesAxiom axiom : definitions) {
+			if (axiom.getNamedClasses().contains(goalClass)) {
+				OWLClassExpression goalExpression = axiom.getClassExpressionsMinus(goalClass).iterator().next();
+				System.out.println();
+				//System.out.print("***** [" + (i + 1) + "] ");
+				runSingleTest(goalClass, goalExpression);
+			}
+		}
+	}
+
+	/*private static void randomTests() throws InterruptedException, IOException {
+		List<OWLEquivalentClassesAxiom> definitions = new ArrayList<OWLEquivalentClassesAxiom>();
+		if (currentClassesList != null) {
+			definitions = Files.lines(Paths.get(currentClassesList)).map(line -> line.substring(1, line.length() - 1))
+					.map(line -> factory.getOWLClass(IRI.create(line)))
+					.flatMap(cls -> snomedModule.getAxioms(cls, Imports.EXCLUDED).stream())
+					.filter(OWLEquivalentClassesAxiom.class::isInstance).map(OWLEquivalentClassesAxiom.class::cast)
+					.collect(Collectors.toList());
+		} else {
+			definitions = snomedModule.getAxioms(AxiomType.EQUIVALENT_CLASSES).stream().collect(Collectors.toList());
+		}
+
+		Random rnd = new Random();
+		System.out.println("Loading finished (" + definitions.size() + " classes with full definitions).");
+
 		for (int i = 0; (i < MAX_TESTS) && (definitions.size() > 0); i++) {
 			OWLEquivalentClassesAxiom axiom = definitions.get(rnd.nextInt(definitions.size()));
 			definitions.remove(axiom);
@@ -382,7 +408,7 @@ public class SNOMEDEvaluation {
 			System.out.print("***** [" + (i + 1) + "] ");
 			runSingleTest(goalClass, goalExpression);
 		}
-	}
+	}*/
 
 	private static void runSingleTest(OWLClass goalClass, OWLClassExpression goalExpression)
 			throws InterruptedException {
